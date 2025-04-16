@@ -4,7 +4,7 @@ import connectToDatabase from '@/lib/mongodb';
 
 export async function PUT(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     await connectToDatabase();
@@ -15,7 +15,7 @@ export async function PUT(
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
     
-    const applicationId = params.id;
+    const applicationId = context.params.id;
     
     // 解析请求体
     const { notes } = await req.json();

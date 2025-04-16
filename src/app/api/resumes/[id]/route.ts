@@ -7,7 +7,7 @@ import path from 'path';
 
 export async function DELETE(
   req: NextRequest,
-  { params }: { params: { id: string } }
+  context: { params: { id: string } }
 ) {
   try {
     await connectToDatabase();
@@ -18,7 +18,7 @@ export async function DELETE(
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
     
-    const resumeId = params.id;
+    const resumeId = context.params.id;
     
     // 验证简历是否存在且属于该用户
     const resume = await Resume.findOne({ _id: resumeId, userId });
