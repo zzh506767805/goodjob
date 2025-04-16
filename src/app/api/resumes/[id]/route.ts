@@ -5,9 +5,15 @@ import connectToDatabase from '@/lib/mongodb';
 import fs from 'fs/promises';
 import path from 'path';
 
+type RouteParams = {
+  params: {
+    id: string;
+  };
+};
+
 export async function DELETE(
   req: NextRequest,
-  context: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
     await connectToDatabase();
@@ -18,7 +24,7 @@ export async function DELETE(
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
     
-    const resumeId = context.params.id;
+    const resumeId = params.id;
     
     // 验证简历是否存在且属于该用户
     const resume = await Resume.findOne({ _id: resumeId, userId });

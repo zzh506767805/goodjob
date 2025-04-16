@@ -2,9 +2,15 @@ import { NextRequest, NextResponse } from 'next/server';
 import Application from '@/models/Application';
 import connectToDatabase from '@/lib/mongodb';
 
+type RouteParams = {
+  params: {
+    id: string;
+  };
+};
+
 export async function PUT(
   req: NextRequest,
-  context: { params: { id: string } }
+  { params }: RouteParams
 ) {
   try {
     await connectToDatabase();
@@ -15,7 +21,7 @@ export async function PUT(
       return NextResponse.json({ error: '未授权' }, { status: 401 });
     }
     
-    const applicationId = context.params.id;
+    const applicationId = params.id;
     
     // 解析请求体
     const { notes } = await req.json();

@@ -3,14 +3,16 @@ import Resume from '@/models/Resume';
 import User from '@/models/User';
 import connectToDatabase from '@/lib/mongodb';
 
-// 定义上下文类型，明确包含 params 对象
-interface RouteContext {
-  params: { id: string };
-}
+// 定义标准的路由参数类型
+type RouteParams = {
+  params: { 
+    id: string;
+  };
+};
 
 export async function PUT(
   req: NextRequest,
-  context: RouteContext // 接收整个上下文对象
+  { params }: RouteParams // 使用标准的路由参数接收方式
 ) {
   try {
     await connectToDatabase();
@@ -23,8 +25,8 @@ export async function PUT(
     }
     console.log(`✅ set-default: Processing request for user: ${userId}`);
     
-    // 通过 context.params.id 获取 resumeId
-    const resumeId = context.params.id;
+    // 通过 params.id 获取 resumeId
+    const resumeId = params.id;
     console.log(`📄 set-default: Target resumeId: ${resumeId}`);
     
     // 验证简历是否存在且属于该用户
