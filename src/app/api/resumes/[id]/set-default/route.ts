@@ -3,16 +3,9 @@ import Resume from '@/models/Resume';
 import User from '@/models/User';
 import connectToDatabase from '@/lib/mongodb';
 
-// 定义标准的路由参数类型
-type RouteParams = {
-  params: { 
-    id: string;
-  };
-};
-
 export async function PUT(
   req: NextRequest,
-  { params }: RouteParams // 使用标准的路由参数接收方式
+  { params }: { params: { id: string } }
 ) {
   try {
     await connectToDatabase();

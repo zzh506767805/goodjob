@@ -2,15 +2,9 @@ import { NextRequest, NextResponse } from 'next/server';
 import Application from '@/models/Application';
 import connectToDatabase from '@/lib/mongodb';
 
-type RouteParams = {
-  params: {
-    id: string;
-  };
-};
-
 export async function PUT(
   req: NextRequest,
-  { params }: RouteParams
+  { params }: { params: { id: string } }
 ) {
   try {
     await connectToDatabase();

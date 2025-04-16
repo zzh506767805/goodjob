@@ -5,15 +5,9 @@ import connectToDatabase from '@/lib/mongodb';
 import fs from 'fs/promises';
 import path from 'path';
 
-type RouteParams = {
-  params: {
-    id: string;
-  };
-};
-
 export async function DELETE(
   req: NextRequest,
-  { params }: RouteParams
+  { params }: { params: { id: string } }
 ) {
   try {
     await connectToDatabase();
