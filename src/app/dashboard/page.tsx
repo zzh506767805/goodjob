@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef } from 'react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
 import { format } from 'date-fns';
@@ -21,28 +21,29 @@ export default function Dashboard() {
     recentApplications: [],
     loading: true
   });
+  
+  // 使用ref来跟踪是否已经加载过数据
+  const dataLoadedRef = useRef(false);
 
   useEffect(() => {
-    // 添加一个标志位来确保组件挂载时一定会执行一次
-    let isMounted = true;
-    
-    const loadData = async () => {
-      if (isMounted) {
-        // 首先刷新用户状态
-        await refreshUserStatus();
-        
-        if (token) {
+    // 只有当token存在且数据尚未加载时才执行加载
+    if (token && !dataLoadedRef.current) {
+      const loadData = async () => {
+        try {
+          // 首先刷新用户状态
+          await refreshUserStatus();
           // 然后获取仪表盘数据
           await fetchDashboardData();
+          // 标记数据已加载
+          dataLoadedRef.current = true;
+        } catch (error) {
+          console.error('加载仪表盘数据失败:', error);
         }
-      }
-    };
-    
-    loadData();
-    
-    // 清理函数，组件卸载时更新标志位
-    return () => { isMounted = false; };
-  }, []); // 不再依赖token，确保只在组件挂载时执行一次
+      };
+      
+      loadData();
+    }
+  }, [token]); // 只依赖于token
 
   const fetchDashboardData = async () => {
     try {
@@ -88,6 +89,20 @@ export default function Dashboard() {
     }
   };
 
+  // 手动刷新仪表盘数据的函数
+  const refreshDashboardData = async () => {
+    setStats(prev => ({ ...prev, loading: true }));
+    try {
+      // 首先刷新用户状态
+      await refreshUserStatus();
+      // 然后获取仪表盘数据
+      await fetchDashboardData();
+    } catch (error) {
+      console.error('刷新仪表盘数据失败:', error);
+      setStats(prev => ({ ...prev, loading: false }));
+    }
+  };
+
   // 格式化会员到期时间
   const formatExpiryDate = (date: Date | null | undefined) => {
     if (!date) return '无到期日期';
@@ -115,8 +130,16 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* 欢迎标题 - 移除会员标识，保持简洁 */}
-        <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
+        {/* 欢迎标题和刷新按钮 */}
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
+          <button 
+            onClick={refreshDashboardData}
+            className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition"
+          >
+            刷新数据
+          </button>
+        </div>
         
         {/* 数据卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
