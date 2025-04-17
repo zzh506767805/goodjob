@@ -95,9 +95,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             {user && (
               <div className="mb-3 p-3 bg-gray-50 rounded-md">
                 <div className="text-sm font-medium text-gray-700">{user.name}</div>
-                <div className={`mt-1 text-xs font-medium px-2 py-1 rounded-full inline-block ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                  {user.isMember ? '高级会员' : '普通会员'}
-                </div>
               </div>
             )}
             <button
@@ -126,12 +123,7 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
           <span className="text-xl font-semibold">AI求职助手</span>
           <div className="flex items-center">
             {user && (
-              <div className="flex items-center">
-                <span className="text-sm text-gray-700 mr-2">{user.name}</span>
-                <span className={`text-xs font-medium px-2 py-1 rounded-full ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                  {user.isMember ? '高级会员' : '普通会员'}
-                </span>
-              </div>
+              <span className="text-sm text-gray-700">{user.name}</span>
             )}
           </div>
         </div>

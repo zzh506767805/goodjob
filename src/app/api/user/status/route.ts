@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
 
     // 3. 查询用户信息
     console.log(`🔍 user/status: 正在查找用户 ${userId} 的状态信息...`);
-    const user: IUser | null = await User.findById(userId).select('+isMember +dailySubmissions +lastSubmissionDate');
+    const user: IUser | null = await User.findById(userId).select('+isMember +dailySubmissions +lastSubmissionDate +membershipExpiry');
 
     if (!user) {
       console.log(`❌ user/status: 找不到用户 ${userId} 的信息`);
@@ -81,7 +81,8 @@ export async function GET(req: NextRequest) {
       id: user._id instanceof mongoose.Types.ObjectId ? user._id.toString() : user._id,
       name: user.name,
       email: user.email,
-      isMember: user.isMember || false
+      isMember: user.isMember || false,
+      membershipExpiry: user.membershipExpiry || null
     };
 
     // 8. 返回状态信息和用户信息
@@ -89,6 +90,7 @@ export async function GET(req: NextRequest) {
       {
         user: userInfo,
         isMember: user.isMember || false,
+        membershipExpiry: user.membershipExpiry || null,
         remainingSubmissions: remainingSubmissions,
         limit: submissionLimit, // 把总限额也返回给前端，方便显示 "X / Y 次"
       },

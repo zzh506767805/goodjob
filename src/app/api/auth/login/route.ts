@@ -44,6 +44,8 @@ export async function POST(req: NextRequest) {
       id: user._id,
       name: user.name,
       email: user.email,
+      isMember: user.isMember || false,
+      membershipExpiry: user.membershipExpiry || null
     };
 
     return NextResponse.json({ 

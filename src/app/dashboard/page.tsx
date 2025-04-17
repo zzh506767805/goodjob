@@ -3,6 +3,8 @@
 import { useEffect, useState } from 'react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import { useAuth } from '@/contexts/AuthContext';
+import { format } from 'date-fns';
+import { zhCN } from 'date-fns/locale';
 
 interface DashboardStats {
   resumeCount: number;
@@ -86,20 +88,38 @@ export default function Dashboard() {
     }
   };
 
+  // 格式化会员到期时间
+  const formatExpiryDate = (date: Date | null | undefined) => {
+    if (!date) return '无到期日期';
+    return format(new Date(date), 'yyyy年MM月dd日', { locale: zhCN });
+  };
+  
+  // 获取会员状态详细信息
+  const getMembershipInfo = () => {
+    if (!user) return { text: '未登录', className: 'bg-gray-100 text-gray-800' };
+    
+    if (user.isMember) {
+      const expiryDate = user.membershipExpiry ? new Date(user.membershipExpiry) : null;
+      const expiryText = expiryDate ? `有效期至 ${formatExpiryDate(expiryDate)}` : '永久会员';
+      return { 
+        text: `高级会员 (${expiryText})`, 
+        className: 'bg-green-100 text-green-800'
+      };
+    } else {
+      return { text: '普通会员', className: 'bg-blue-100 text-blue-800' };
+    }
+  };
+
+  const membershipInfo = getMembershipInfo();
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
-          {user && (
-            <span className={`px-3 py-1 text-sm font-medium rounded-full ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-              {user.isMember ? '高级会员' : '普通会员'}
-            </span>
-          )}
-        </div>
+        {/* 欢迎标题 - 移除会员标识，保持简洁 */}
+        <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
         
         {/* 数据卡片 */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           <StatCard 
             title="简历数量" 
             value={stats.loading ? '加载中...' : stats.resumeCount.toString()} 
@@ -114,9 +134,10 @@ export default function Dashboard() {
           />
           <StatCard
             title="会员状态"
-            value={user?.isMember ? '高级会员' : '普通会员'}
+            value={membershipInfo.text}
             icon="👑"
             color="bg-yellow-100"
+            className={membershipInfo.className}
           />
         </div>
         
@@ -194,7 +215,7 @@ export default function Dashboard() {
   );
 }
 
-function StatCard({ title, value, icon, color }: { title: string; value: string; icon: string; color: string }) {
+function StatCard({ title, value, icon, color, className }: { title: string; value: string; icon: string; color: string; className?: string }) {
   return (
     <div className="bg-white shadow rounded-lg p-6">
       <div className="flex items-center">
@@ -203,7 +224,7 @@ function StatCard({ title, value, icon, color }: { title: string; value: string;
         </div>
         <div className="ml-4">
           <h3 className="text-sm font-medium text-gray-500">{title}</h3>
-          <p className="text-2xl font-semibold text-gray-900">{value}</p>
+          <p className={`text-lg font-semibold ${className || 'text-gray-900'}`}>{value}</p>
         </div>
       </div>
     </div>

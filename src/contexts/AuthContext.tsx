@@ -8,6 +8,7 @@ interface User {
   name: string;
   email: string;
   isMember?: boolean;
+  membershipExpiry?: Date | null;
 }
 
 interface AuthContextType {
@@ -45,6 +46,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         console.log('用户状态刷新成功:', data);
         
         if (data.user) {
+          // 如果API返回了membershipExpiry，将字符串转换为Date对象
+          if (data.user.membershipExpiry) {
+            data.user.membershipExpiry = new Date(data.user.membershipExpiry);
+          }
+          
           setUser(data.user);
           // 更新localStorage中的用户信息
           localStorage.setItem('user', JSON.stringify(data.user));
@@ -70,7 +76,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // 如果有本地存储的用户信息，先使用它
           if (storedUser) {
             try {
-              setUser(JSON.parse(storedUser));
+              const parsedUser = JSON.parse(storedUser);
+              
+              // 如果存储的用户信息包含会员到期时间，转换为Date对象
+              if (parsedUser.membershipExpiry) {
+                parsedUser.membershipExpiry = new Date(parsedUser.membershipExpiry);
+              }
+              
+              setUser(parsedUser);
             } catch (e) {
               console.error('解析本地用户数据失败', e);
             }
@@ -89,6 +102,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               console.log('API返回的用户状态:', data);
               
               if (data.user) {
+                // 如果API返回了membershipExpiry，将字符串转换为Date对象
+                if (data.user.membershipExpiry) {
+                  data.user.membershipExpiry = new Date(data.user.membershipExpiry);
+                }
+                
                 setUser(data.user);
                 // 更新localStorage中的用户信息
                 localStorage.setItem('user', JSON.stringify(data.user)); 

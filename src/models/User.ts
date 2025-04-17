@@ -8,6 +8,7 @@ export interface IUser extends Document {
   createdAt: Date;
   defaultResumeId?: mongoose.Types.ObjectId;
   isMember?: boolean;
+  membershipExpiry?: Date;
   dailySubmissions?: number;
   lastSubmissionDate?: Date;
   comparePassword(password: string): Promise<boolean>;
@@ -41,6 +42,10 @@ const UserSchema = new Schema<IUser>({
   isMember: {
     type: Boolean,
     default: false
+  },
+  membershipExpiry: {
+    type: Date,
+    default: null
   },
   dailySubmissions: {
     type: Number,
