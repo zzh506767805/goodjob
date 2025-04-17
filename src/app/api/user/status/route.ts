@@ -3,6 +3,7 @@ import connectToDatabase from '@/lib/mongodb';
 import { verifyAuth } from '@/lib/authUtils';
 import User, { IUser } from '@/models/User';
 import { isSameDay } from 'date-fns';
+import mongoose from 'mongoose';
 
 // --- CORS Headers ---
 const corsHeaders = {
@@ -75,10 +76,19 @@ export async function GET(req: NextRequest) {
         .catch(err => console.error(`❌ user/status: 后台重置用户 ${userId} 投递次数失败:`, err));
     }
 
-    // 7. 返回状态信息
+    // 7. 准备用户信息
+    const userInfo = {
+      id: user._id instanceof mongoose.Types.ObjectId ? user._id.toString() : user._id,
+      name: user.name,
+      email: user.email,
+      isMember: user.isMember || false
+    };
+
+    // 8. 返回状态信息和用户信息
     return NextResponse.json(
       {
-        isMember: user.isMember,
+        user: userInfo,
+        isMember: user.isMember || false,
         remainingSubmissions: remainingSubmissions,
         limit: submissionLimit, // 把总限额也返回给前端，方便显示 "X / Y 次"
       },

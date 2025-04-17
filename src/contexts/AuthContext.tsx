@@ -17,6 +17,7 @@ interface AuthContextType {
   login: (token: string, user: User) => void;
   logout: () => void;
   isAuthenticated: boolean;
+  refreshUserStatus: () => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -27,35 +28,88 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [isLoading, setIsLoading] = useState(true);
   const router = useRouter();
 
+  // 刷新用户状态的函数
+  const refreshUserStatus = async () => {
+    if (!token) return;
+    
+    try {
+      console.log('正在刷新用户状态...');
+      const response = await fetch('/api/user/status', {
+        headers: {
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      
+      if (response.ok) {
+        const data = await response.json();
+        console.log('用户状态刷新成功:', data);
+        
+        if (data.user) {
+          setUser(data.user);
+          // 更新localStorage中的用户信息
+          localStorage.setItem('user', JSON.stringify(data.user));
+        }
+      } else {
+        console.error('刷新用户状态失败:', response.status);
+      }
+    } catch (error) {
+      console.error('刷新用户状态出错:', error);
+    }
+  };
+
   // 在客户端初始化时检查localStorage中的认证信息
   useEffect(() => {
     const initAuth = async () => {
       try {
         const storedToken = localStorage.getItem('token');
+        const storedUser = localStorage.getItem('user');
+        
         if (storedToken) {
-          // 如果有token，尝试从API获取最新的用户信息（包括会员状态）
-          const response = await fetch('/api/user/status', {
-            headers: {
-              'Authorization': `Bearer ${storedToken}`
+          setToken(storedToken);
+          
+          // 如果有本地存储的用户信息，先使用它
+          if (storedUser) {
+            try {
+              setUser(JSON.parse(storedUser));
+            } catch (e) {
+              console.error('解析本地用户数据失败', e);
             }
-          });
-          if (response.ok) {
-            const userData = await response.json();
-            setToken(storedToken);
-            setUser(userData.user);
-            // 更新localStorage中的用户信息
-            localStorage.setItem('user', JSON.stringify(userData.user)); 
-          } else {
-            // Token无效或API错误，清除旧数据
-            localStorage.removeItem('token');
-            localStorage.removeItem('user');
+          }
+          
+          // 然后从服务器获取最新的用户信息
+          try {
+            const response = await fetch('/api/user/status', {
+              headers: {
+                'Authorization': `Bearer ${storedToken}`
+              }
+            });
+            
+            if (response.ok) {
+              const data = await response.json();
+              console.log('API返回的用户状态:', data);
+              
+              if (data.user) {
+                setUser(data.user);
+                // 更新localStorage中的用户信息
+                localStorage.setItem('user', JSON.stringify(data.user)); 
+              }
+            } else {
+              console.error('获取用户状态失败:', response.status);
+              // 只在API确认无效时清除本地数据
+              if (response.status === 401) {
+                localStorage.removeItem('token');
+                localStorage.removeItem('user');
+                setToken(null);
+                setUser(null);
+              }
+            }
+          } catch (error) {
+            console.error('获取用户状态出错:', error);
+            // 网络错误时不清除本地数据，保持离线访问能力
           }
         }
       } catch (error) {
         console.error('初始化认证状态失败:', error);
-        // 清除可能损坏的数据
-        localStorage.removeItem('token');
-        localStorage.removeItem('user');
       } finally {
         setIsLoading(false);
       }
@@ -87,7 +141,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     isLoading,
     login,
     logout,
-    isAuthenticated: !!token
+    isAuthenticated: !!token,
+    refreshUserStatus
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

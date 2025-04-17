@@ -12,7 +12,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
-  const { token, user } = useAuth();
+  const { token, user, refreshUserStatus } = useAuth();
   const [stats, setStats] = useState<DashboardStats>({
     resumeCount: 0,
     applicationCount: 0,
@@ -21,14 +21,30 @@ export default function Dashboard() {
   });
 
   useEffect(() => {
-    // 如果用户已登录，获取仪表盘数据
-    if (token) {
-      fetchDashboardData();
-    }
-  }, [token]);
+    // 添加一个标志位来确保组件挂载时一定会执行一次
+    let isMounted = true;
+    
+    const loadData = async () => {
+      if (isMounted) {
+        // 首先刷新用户状态
+        await refreshUserStatus();
+        
+        if (token) {
+          // 然后获取仪表盘数据
+          await fetchDashboardData();
+        }
+      }
+    };
+    
+    loadData();
+    
+    // 清理函数，组件卸载时更新标志位
+    return () => { isMounted = false; };
+  }, []); // 不再依赖token，确保只在组件挂载时执行一次
 
   const fetchDashboardData = async () => {
     try {
+      console.log('开始获取仪表盘数据...');
       // 获取简历数量
       const resumeResponse = await fetch('/api/resumes', {
         headers: {
@@ -47,11 +63,21 @@ export default function Dashboard() {
         const resumeData = await resumeResponse.json();
         const applicationData = await applicationResponse.json();
         
+        console.log('仪表盘数据获取成功', { 
+          resumeCount: resumeData.resumes.length, 
+          applicationCount: applicationData.applications.length 
+        });
+        
         setStats({
           resumeCount: resumeData.resumes.length,
           applicationCount: applicationData.applications.length,
           recentApplications: applicationData.applications.slice(0, 5),
           loading: false
+        });
+      } else {
+        console.error('获取仪表盘数据接口错误', { 
+          resumeStatus: resumeResponse.status, 
+          appStatus: applicationResponse.status 
         });
       }
     } catch (error) {
@@ -63,7 +89,14 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
+        <div className="flex justify-between items-center">
+          <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
+          {user && (
+            <span className={`px-3 py-1 text-sm font-medium rounded-full ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+              {user.isMember ? '高级会员' : '普通会员'}
+            </span>
+          )}
+        </div>
         
         {/* 数据卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -78,6 +111,12 @@ export default function Dashboard() {
             value={stats.loading ? '加载中...' : stats.applicationCount.toString()} 
             icon="📨" 
             color="bg-green-100"
+          />
+          <StatCard
+            title="会员状态"
+            value={user?.isMember ? '高级会员' : '普通会员'}
+            icon="👑"
+            color="bg-yellow-100"
           />
         </div>
         
