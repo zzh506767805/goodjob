@@ -1,65 +1,11 @@
 'use client';
 
-import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '@/contexts/AuthContext';
 
-// 定义用户状态类型
-interface UserStatus {
-  isMember: boolean;
-  remainingSubmissions: number;
-  limit: number;
-}
-
 export default function Home() {
-  const { user, loading: authLoading } = useAuth();
-  const [status, setStatus] = useState<UserStatus | null>(null);
-  const [statusLoading, setStatusLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  useEffect(() => {
-    const fetchStatus = async () => {
-      if (user) {
-        setStatusLoading(true);
-        setError('');
-        try {
-          const token = localStorage.getItem('token'); // 从 localStorage 获取 token
-          if (!token) {
-            // 理论上 user 存在时 token 也应该存在，但作为健壮性检查
-            console.warn('User context exists but token not found in localStorage.');
-            // 可以选择在此处强制登出或忽略
-            setStatusLoading(false);
-            return;
-          }
-          
-          const response = await fetch('/api/user/status', {
-            headers: {
-              'Authorization': `Bearer ${token}`,
-            },
-          });
-          if (!response.ok) {
-            const errorData = await response.json().catch(() => ({}));
-            throw new Error(errorData.error || '获取用户状态失败');
-          }
-          const data: UserStatus = await response.json();
-          setStatus(data);
-        } catch (err: any) {
-          setError(err.message);
-        } finally {
-          setStatusLoading(false);
-        }
-      } else {
-        setStatus(null); // 用户未登录，清空状态
-      }
-    };
-
-    // 当用户信息加载完毕后再获取状态
-    if (!authLoading) {
-        fetchStatus();
-    }
-
-  }, [user, authLoading]); // 依赖用户和认证加载状态
+  const { user, isAuthenticated, isLoading } = useAuth();
 
   return (
     <main className="flex min-h-screen flex-col items-center justify-between p-6">
@@ -72,41 +18,26 @@ export default function Home() {
           </p>
         </div>
 
-        {/* 操作按钮/状态显示 */}
-        <div className="flex flex-col items-center gap-4 min-h-[100px]">
-          {authLoading ? (
-            <p className="text-gray-600">正在加载用户状态...</p>
-          ) : user ? (
+        {/* 操作按钮 或 用户状态 */}
+        <div className="flex gap-4">
+          {isLoading ? (
+            <p className="text-gray-500">加载中...</p>
+          ) : isAuthenticated && user ? (
             // 用户已登录
-            <div className="text-center">
-              <p className="text-lg text-gray-800">欢迎回来, {user.name || '用户'}!</p>
-              {statusLoading ? (
-                <p className="text-sm text-gray-500">正在获取会员状态...</p>
-              ) : status ? (
-                <p className="text-sm text-gray-600">
-                  当前状态: {status.isMember ? '✨ Pro 会员' : '普通会员'} (今日剩余: {status.remainingSubmissions}/{status.limit})
-                </p>
-              ) : error ? (
-                  <p className="text-sm text-red-500">获取状态失败: {error}</p>
-              ) : null}
-              <div className="mt-4 flex gap-4 justify-center">
-                <Link href="/dashboard"
-                  className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
-                >
-                  进入控制台
-                </Link>
-                {!status?.isMember && (
-                  <Link href="/pricing" // 假设定价页面路径为 /pricing
-                    className="px-6 py-3 bg-yellow-500 text-white rounded-lg font-semibold hover:bg-yellow-600 transition"
-                  >
-                    升级 Pro
-                  </Link>
-                )}
-              </div>
+            <div className="flex flex-col items-center gap-2">
+              <span className="text-lg font-semibold text-gray-800">欢迎, {user.name}!</span>
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                {user.isMember ? '高级会员' : '普通会员'}
+              </span>
+              <Link href="/dashboard"
+                className="mt-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
+              >
+                进入仪表盘
+              </Link>
             </div>
           ) : (
             // 用户未登录
-            <div className="flex gap-4">
+            <>
               <Link href="/auth/login"
                 className="px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"
               >
@@ -117,7 +48,7 @@ export default function Home() {
               >
                 注册
               </Link>
-            </div>
+            </>
           )}
         </div>
 
@@ -175,7 +106,7 @@ function FeatureCard({ title, description, icon }: { title: string; description:
   return (
     <div className="bg-white rounded-xl shadow-md p-6 hover:shadow-lg transition">
       <div className="w-12 h-12 bg-blue-100 rounded-full flex items-center justify-center mb-4">
-        <span className="text-2xl">📄</span>
+        <div className="w-6 h-6 bg-blue-500 rounded" />
       </div>
       <h3 className="text-xl font-semibold mb-2">{title}</h3>
       <p className="text-gray-600">{description}</p>

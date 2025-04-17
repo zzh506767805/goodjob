@@ -46,27 +46,20 @@ export default function Login() {
       localStorage.setItem('user', JSON.stringify(data.user));
 
       // !! 发送 Token 给浏览器插件的 Background Script !!
-      // 重要：将下面的 ID 替换为你的插件在 chrome://extensions 页面显示的真实 ID
-      const pluginId = "homoieaikgicmgkcolkilkjlikflbeca"; // <--- 在这里替换 ID
-      if (typeof chrome !== 'undefined' && chrome.runtime && chrome.runtime.sendMessage) {
-        try {
-            console.log(`Login successful, sending token to extension ID: ${pluginId}...`);
-            chrome.runtime.sendMessage(pluginId, { action: "saveAuthToken", token: data.token }, (response) => {
-              if (chrome.runtime.lastError) {
-                console.error("Error sending message to extension:", chrome.runtime.lastError.message);
-                // 即使发送失败，也可能继续跳转，让用户手动处理
-                // 可以考虑在这里给用户一个提示，说明插件状态可能未同步
-              } else {
-                console.log("Message sent to extension background, response:", response);
-              }
-              // 无论发送成功与否，都继续跳转到仪表盘
-              router.push('/dashboard'); 
-            });
-        } catch (error) {
-            console.error("Error trying to send message to extension:", error);
-            // 发生错误也继续跳转
-            router.push('/dashboard');
-        }
+      const pluginId = "homoieaikgicmgkcolkilkjlikflbeca"; // <-- 重要：替换成你的插件 ID
+      if (chrome && chrome.runtime && chrome.runtime.sendMessage) {
+        console.log(`Login successful, sending token to extension ID: ${pluginId}...`);
+        chrome.runtime.sendMessage(pluginId, { action: "saveAuthToken", token: data.token }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error("Error sending message to extension:", chrome.runtime.lastError.message);
+            // 即使发送失败，也可能继续跳转，让用户手动处理
+            // alert("无法连接到插件以保存登录状态，请确保插件已安装并启用。");
+          } else {
+            console.log("Message sent to extension background, response:", response);
+          }
+          // 无论发送成功与否，都继续跳转
+          router.push('/dashboard'); 
+        });
       } else {
         console.warn("Chrome runtime or sendMessage not available. Cannot send token to extension.");
         // 即使没有插件环境，也应该跳转

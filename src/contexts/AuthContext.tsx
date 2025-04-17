@@ -7,6 +7,7 @@ interface User {
   id: string;
   name: string;
   email: string;
+  isMember?: boolean;
 }
 
 interface AuthContextType {
@@ -28,14 +29,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   // 在客户端初始化时检查localStorage中的认证信息
   useEffect(() => {
-    const initAuth = () => {
+    const initAuth = async () => {
       try {
         const storedToken = localStorage.getItem('token');
-        const storedUser = localStorage.getItem('user');
-
-        if (storedToken && storedUser) {
-          setToken(storedToken);
-          setUser(JSON.parse(storedUser));
+        if (storedToken) {
+          // 如果有token，尝试从API获取最新的用户信息（包括会员状态）
+          const response = await fetch('/api/user/status', {
+            headers: {
+              'Authorization': `Bearer ${storedToken}`
+            }
+          });
+          if (response.ok) {
+            const userData = await response.json();
+            setToken(storedToken);
+            setUser(userData.user);
+            // 更新localStorage中的用户信息
+            localStorage.setItem('user', JSON.stringify(userData.user)); 
+          } else {
+            // Token无效或API错误，清除旧数据
+            localStorage.removeItem('token');
+            localStorage.removeItem('user');
+          }
         }
       } catch (error) {
         console.error('初始化认证状态失败:', error);
