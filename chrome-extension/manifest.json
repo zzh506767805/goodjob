@@ -27,9 +27,7 @@
     },
     {
       "matches": [
-        "*://goodjob-gules.vercel.app/*", 
-        "http://localhost:3000/*",
-        "https://localhost:3000/*"
+        "*://*.bosszhipin.work/*"
       ],
       "js": ["content_script.js"]
     }
@@ -42,15 +40,11 @@
   ],
   "externally_connectable": {
     "matches": [
-      "*://goodjob-gules.vercel.app/*", 
-      "http://localhost:3000/*",
-      "https://localhost:3000/*"
+      "*://*.bosszhipin.work/*"
     ]
   },
   "host_permissions": [
     "*://*.zhipin.com/*",
-    "*://goodjob-gules.vercel.app/*",
-    "http://localhost:3000/*",
-    "https://localhost:3000/*"
+    "*://*.bosszhipin.work/*"
   ]
 } 

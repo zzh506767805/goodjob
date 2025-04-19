@@ -27,11 +27,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [token, setToken] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [lastStatusRefresh, setLastStatusRefresh] = useState<number>(0);
   const router = useRouter();
 
   // 刷新用户状态的函数
   const refreshUserStatus = async () => {
     if (!token) return;
+    
+    // 添加防抖逻辑：5秒内不重复调用status API（除非强制刷新）
+    const now = Date.now();
+    const timeSinceLastRefresh = now - lastStatusRefresh;
+    
+    // 如果距离上次刷新不到5秒且不是强制刷新，则跳过
+    if (timeSinceLastRefresh < 5000 && lastStatusRefresh > 0) {
+      console.log('跳过用户状态刷新 - 距上次刷新仅', timeSinceLastRefresh, 'ms');
+      return;
+    }
     
     try {
       console.log('正在刷新用户状态...');
@@ -54,6 +65,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           setUser(data.user);
           // 更新localStorage中的用户信息
           localStorage.setItem('user', JSON.stringify(data.user));
+          // 记录本次状态刷新时间
+          setLastStatusRefresh(now);
         }
       } else {
         console.error('刷新用户状态失败:', response.status);
@@ -109,7 +122,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 
                 setUser(data.user);
                 // 更新localStorage中的用户信息
-                localStorage.setItem('user', JSON.stringify(data.user)); 
+                localStorage.setItem('user', JSON.stringify(data.user));
+                // 记录本次状态刷新时间
+                setLastStatusRefresh(Date.now());
               }
             } else {
               console.error('获取用户状态失败:', response.status);

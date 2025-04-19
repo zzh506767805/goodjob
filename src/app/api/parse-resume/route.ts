@@ -69,6 +69,14 @@ export async function POST(req: NextRequest) {
           const pdfParseModule = await import('pdf-parse-fork');
           const pdfParse = pdfParseModule.default || pdfParseModule;
           
+          console.log('PDF解析库加载成功，开始调用解析函数');
+          
+          // 添加额外的错误处理器来捕获可能的弃用警告
+          process.on('warning', e => {
+            console.warn('Node警告:', e.name, e.message);
+            console.warn('警告来源堆栈:', e.stack);
+          });
+          
           const pdfData = await pdfParse(dataBuffer, {
             max: 50  // 限制处理页数
           });

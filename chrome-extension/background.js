@@ -1,7 +1,7 @@
 console.log("Background service worker started.");
 
 // 后台 API 地址常量
-const API_BASE_URL = 'http://localhost:3000'; // 根据实际情况修改
+const API_BASE_URL = 'https://bosszhipin.work'; // 修改为新域名
 
 // 监听来自 content script 或 popup 的消息
 console.log("Background: Adding onMessage listener...");
@@ -222,7 +222,7 @@ console.log("Background: Adding onMessageExternal listener...");
 chrome.runtime.onMessageExternal.addListener((request, sender, sendResponse) => {
   console.log("Background: onMessageExternal triggered. Request:", request, "Sender:", sender);
 
-  if (sender.origin !== "http://localhost:3000") {
+  if (!sender.origin.includes("bosszhipin.work")) {
     console.warn("Background: Received external message from unexpected origin:", sender.origin);
     return false; // 拒绝非预期的来源
   }

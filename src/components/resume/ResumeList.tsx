@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import React from 'react';
 
@@ -16,14 +16,44 @@ interface Resume {
 interface ResumeListProps {
   resumes: Resume[];
   onParse: (resumeId: string) => Promise<void>;
-  onSetDefault: (resumeId: string) => Promise<void>;
   onDelete: (resumeId: string) => Promise<void>;
 }
 
-export default function ResumeList({ resumes, onParse, onSetDefault, onDelete }: ResumeListProps) {
+export default function ResumeList({ resumes, onParse, onDelete }: ResumeListProps) {
   const [expandedId, setExpandedId] = useState<string | null>(null);
   const [actionLoading, setActionLoading] = useState<{ [id: string]: string }>({});
   
+  useEffect(() => {
+    const newResumes = resumes
+      .filter(resume => !resume.parsedData?.personalInfo?.name)
+      .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
+      .slice(0, 1);
+      
+    if (newResumes.length > 0) {
+      const loadingState = { ...actionLoading };
+      newResumes.forEach(resume => {
+        loadingState[resume._id] = 'auto-parsing';
+      });
+      setActionLoading(loadingState);
+      
+      const checkInterval = setInterval(() => {
+        setTimeout(() => {
+          setActionLoading(prev => {
+            const newState = { ...prev };
+            newResumes.forEach(resume => {
+              if (newState[resume._id] === 'auto-parsing') {
+                delete newState[resume._id];
+              }
+            });
+            return newState;
+          });
+        }, 60000);
+      }, 5000);
+      
+      return () => clearInterval(checkInterval);
+    }
+  }, [resumes]);
+
   const handleParse = async (resumeId: string) => {
     setActionLoading(prev => ({ ...prev, [resumeId]: 'parsing' }));
     try {
@@ -37,21 +67,8 @@ export default function ResumeList({ resumes, onParse, onSetDefault, onDelete }:
     }
   };
   
-  const handleSetDefault = async (resumeId: string) => {
-    setActionLoading(prev => ({ ...prev, [resumeId]: 'setting-default' }));
-    try {
-      await onSetDefault(resumeId);
-    } finally {
-      setActionLoading(prev => {
-        const newState = { ...prev };
-        delete newState[resumeId];
-        return newState;
-      });
-    }
-  };
-  
   const handleDelete = async (resumeId: string) => {
-    if (!window.confirm('确定要删除这份简历吗？')) return;
+    if (!window.confirm('确定要删除这份简历吗？删除后您将没有任何简历，需要重新上传。')) return;
     
     setActionLoading(prev => ({ ...prev, [resumeId]: 'deleting' }));
     try {
@@ -85,17 +102,13 @@ export default function ResumeList({ resumes, onParse, onSetDefault, onDelete }:
           <div key={resume._id} className="p-6">
             <div className="flex items-center justify-between">
               <div className="flex items-center">
-                <div className={`w-10 h-10 rounded-full flex items-center justify-center ${
-                  resume.isDefault ? 'bg-blue-100 text-blue-600' : 'bg-gray-100 text-gray-600'
-                }`}>
+                <div className="w-10 h-10 rounded-full flex items-center justify-center bg-blue-100 text-blue-600">
                   📄
                 </div>
                 <div className="ml-4">
                   <h3 className="text-lg font-medium text-gray-900">
                     {resume.name}
-                    {resume.isDefault && (
-                      <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">默认</span>
-                    )}
+                    <span className="ml-2 px-2 py-0.5 text-xs bg-blue-100 text-blue-800 rounded-full">默认</span>
                   </h3>
                   <p className="text-sm text-gray-500">
                     上传时间: {new Date(resume.createdAt).toLocaleDateString()}
@@ -110,7 +123,8 @@ export default function ResumeList({ resumes, onParse, onSetDefault, onDelete }:
                     disabled={!!actionLoading[resume._id]}
                     className="px-3 py-1.5 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 disabled:bg-blue-300"
                   >
-                    {actionLoading[resume._id] === 'parsing' ? '解析中...' : '解析简历'}
+                    {actionLoading[resume._id] === 'parsing' ? '解析中...' : 
+                     actionLoading[resume._id] === 'auto-parsing' ? '自动解析中...' : '解析简历'}
                   </button>
                 ) : (
                   <React.Fragment key="actions-buttons">
@@ -121,16 +135,6 @@ export default function ResumeList({ resumes, onParse, onSetDefault, onDelete }:
                     >
                       {expandedId === resume._id ? '收起' : '查看详情'}
                     </button>
-                    {!resume.isDefault && (
-                      <button
-                        key="default-button"
-                        onClick={() => handleSetDefault(resume._id)}
-                        disabled={!!actionLoading[resume._id]}
-                        className="px-3 py-1.5 text-sm bg-green-600 text-white rounded hover:bg-green-700 disabled:bg-green-300"
-                      >
-                        {actionLoading[resume._id] === 'setting-default' ? '设置中...' : '设为默认'}
-                      </button>
-                    )}
                   </React.Fragment>
                 )}
                 <button

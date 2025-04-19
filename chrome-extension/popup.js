@@ -1,8 +1,8 @@
 console.log("Popup script loaded!");
 
 // 后端 API 基础 URL (直接使用线上地址)
-const API_BASE_URL = 'https://goodjob-gules.vercel.app/api'; 
-const WEBSITE_URL = 'https://goodjob-gules.vercel.app'; // 官网地址
+const API_BASE_URL = 'https://bosszhipin.work/api'; 
+const WEBSITE_URL = 'https://bosszhipin.work'; // 官网地址
 
 // 获取认证 Token 的函数 (需要根据实际存储方式实现)
 async function getAuthToken() {

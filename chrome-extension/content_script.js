@@ -520,8 +520,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
     console.log("收到请求：检查并同步token");
     
     // 判断是否在官网页面
-    if (window.location.hostname.includes('goodjob-gules.vercel.app') || 
-        window.location.hostname === 'localhost') {
+    if (window.location.hostname.includes('bosszhipin.work')) {
       try {
         // 从localStorage中获取token
         const token = localStorage.getItem('authToken') || localStorage.getItem('token');
@@ -564,8 +563,7 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 // 在官网页面检查并获取token
 function checkForTokenOnWebsite() {
   // 判断是否在官网页面
-  if (window.location.hostname.includes('goodjob-gules.vercel.app') || 
-      window.location.hostname === 'localhost') {
+  if (window.location.hostname.includes('bosszhipin.work')) {
     
     console.log("Content script running on official website. Checking for token...");
     

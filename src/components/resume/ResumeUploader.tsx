@@ -6,13 +6,15 @@ import { useAuth } from '@/contexts/AuthContext';
 
 interface ResumeUploaderProps {
   onUploadSuccess: (resumeData: any) => void;
+  hasExistingResume: boolean; // 添加标识用户是否已有简历的属性
 }
 
-export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps) {
+export default function ResumeUploader({ onUploadSuccess, hasExistingResume }: ResumeUploaderProps) {
   const { token } = useAuth();
   const [isUploading, setIsUploading] = useState(false);
   const [error, setError] = useState('');
   const [resumeName, setResumeName] = useState('');
+  const [successMessage, setSuccessMessage] = useState('');
 
   const onDrop = useCallback(async (acceptedFiles: File[]) => {
     if (acceptedFiles.length === 0) return;
@@ -32,6 +34,7 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
     
     setIsUploading(true);
     setError('');
+    setSuccessMessage('');
     
     try {
       // 创建FormData
@@ -54,17 +57,27 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
         throw new Error(data.error || '上传失败');
       }
       
+      // 显示成功消息
+      setSuccessMessage(
+        hasExistingResume
+          ? '简历已成功替换，系统正在自动解析...'
+          : '简历上传成功，系统正在自动解析...'
+      );
+      
       // 通知父组件上传成功
       onUploadSuccess(data.resume);
       
       // 重置表单
       setResumeName('');
+
+      // 5秒后清除成功消息
+      setTimeout(() => setSuccessMessage(''), 5000);
     } catch (err: any) {
       setError(err.message);
     } finally {
       setIsUploading(false);
     }
-  }, [token, resumeName, onUploadSuccess]);
+  }, [token, resumeName, onUploadSuccess, hasExistingResume]);
   
   const { getRootProps, getInputProps, isDragActive } = useDropzone({
     onDrop,
@@ -78,11 +91,19 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
 
   return (
     <div className="bg-white shadow rounded-lg p-6">
-      <h2 className="text-lg font-medium text-gray-900 mb-4">上传新简历</h2>
+      <h2 className="text-lg font-medium text-gray-900 mb-4">
+        {hasExistingResume ? '替换简历' : '上传简历'}
+      </h2>
       
       {error && (
         <div className="bg-red-50 border-l-4 border-red-500 p-4 mb-4">
           <p className="text-red-500">{error}</p>
+        </div>
+      )}
+      
+      {successMessage && (
+        <div className="bg-green-50 border-l-4 border-green-500 p-4 mb-4">
+          <p className="text-green-600">{successMessage}</p>
         </div>
       )}
       
@@ -124,8 +145,15 @@ export default function ResumeUploader({ onUploadSuccess }: ResumeUploaderProps)
             <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
             </svg>
-            <p className="mt-2 text-gray-600">拖放简历文件到这里，或点击选择文件</p>
+            <p className="mt-2 text-gray-600">
+              {hasExistingResume 
+                ? '拖放新简历文件到这里替换现有简历，或点击选择文件' 
+                : '拖放简历文件到这里，或点击选择文件'}
+            </p>
             <p className="mt-1 text-sm text-gray-500">支持PDF和Word文档格式</p>
+            {hasExistingResume && (
+              <p className="mt-2 text-sm text-orange-500 font-medium">注意：上传新简历将替换您当前的简历</p>
+            )}
           </div>
         )}
       </div>

@@ -26,21 +26,6 @@ export async function DELETE(
       return NextResponse.json({ error: '找不到简历' }, { status: 404 });
     }
     
-    // 如果是默认简历，先检查是否有其他简历可以设为默认
-    if (resume.isDefault) {
-      const otherResume = await Resume.findOne({ 
-        userId, 
-        _id: { $ne: resumeId } 
-      });
-      
-      if (otherResume) {
-        await Resume.updateOne(
-          { _id: otherResume._id },
-          { $set: { isDefault: true } }
-        );
-      }
-    }
-    
     // 删除文件系统中的简历文件
     try {
       const filePath = path.join(process.cwd(), 'public', resume.fileUrl);
