@@ -8,6 +8,78 @@ console.log("Background: Adding onMessage listener...");
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   console.log("Background: onMessage triggered. Request:", request, "Sender:", sender);
   
+  // --- 新增：处理获取用户状态请求 ---
+  if (request.action === "getUserStatus") {
+    console.log("📊 Background: Received getUserStatus request");
+    
+    (async () => {
+      try {
+        const result = await chrome.storage.local.get(['authToken']);
+        const token = result.authToken;
+        if (!token) {
+          console.error("❌ Background: Auth token not found for getUserStatus");
+          sendResponse({ 
+            error: "用户未登录", 
+            limitReached: false, 
+            remainingSubmissions: 0,
+            isEffectivelyMember: false
+          });
+          return;
+        }
+        
+        // 调用后端API获取用户状态
+        console.log("✅ Background: Retrieved auth token for getUserStatus. Calling API...");
+        const apiUrl = `${API_BASE_URL}/api/user/status`;
+        const response = await fetch(apiUrl, {
+          method: 'GET',
+          headers: {
+            'Authorization': `Bearer ${token}`
+          }
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: `API请求失败，状态码: ${response.status}` }));
+          console.error(`❌ Background: user/status API call failed:`, errorData);
+          sendResponse({ 
+            error: errorData.error || `获取用户状态失败 (${response.status})`, 
+            limitReached: false,
+            remainingSubmissions: 3, // 默认给非会员的限制
+            isEffectivelyMember: false
+          });
+          return;
+        }
+
+        const data = await response.json();
+        console.log("✅ Background: Received user status from API:", data);
+        
+        // 提取必要信息并返回
+        const userStatus = {
+          name: data.name || null, // 添加用户名字段
+          email: data.email || null, // 添加邮箱字段
+          remainingSubmissions: data.remainingSubmissions || 0,
+          limitReached: data.remainingSubmissions <= 0,
+          isEffectivelyMember: data.isEffectivelyMember || false,
+          membershipExpiry: data.membershipExpiry || null,
+          limit: data.isEffectivelyMember ? 200 : 3
+        };
+        
+        console.log("📊 Background: Sending user status to content script:", userStatus);
+        sendResponse(userStatus);
+        
+      } catch (error) {
+        console.error("❌ Background: Error in getUserStatus:", error);
+        sendResponse({ 
+          error: `获取用户状态时发生错误: ${error.message}`,
+          limitReached: false,
+          remainingSubmissions: 3, // 默认值
+          isEffectivelyMember: false
+        });
+      }
+    })();
+    
+    return true; // 异步处理
+  }
+  
   if (request.action === "processJobPage") {
     console.log("Background: Processing job page data:", request.details);
     

@@ -1,7 +1,8 @@
 console.log("Popup script loaded!");
 
-// 后端 API 基础 URL (从环境变量或默认值获取)
-const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL || 'http://localhost:3000/api'; 
+// 后端 API 基础 URL (直接使用线上地址)
+const API_BASE_URL = 'https://goodjob-gules.vercel.app/api'; 
+const WEBSITE_URL = 'https://goodjob-gules.vercel.app'; // 官网地址
 
 // 获取认证 Token 的函数 (需要根据实际存储方式实现)
 async function getAuthToken() {
@@ -14,80 +15,348 @@ async function getAuthToken() {
   // return 'YOUR_STATIC_TOKEN_FOR_TESTING'; // 或者返回一个静态 token 用于测试
 }
 
-// 更新 UI 显示状态的函数
-function updateStatusUI(statusData) {
-  const submissionStatusElement = document.getElementById('submission-status');
-  const membershipPromoElement = document.getElementById('membership-promo');
-  const upgradeLinkElement = document.getElementById('upgrade-link'); // 获取升级链接元素
+// 清除认证 Token（退出登录）
+async function clearAuthToken() {
+  return new Promise((resolve) => {
+    chrome.storage.local.remove('authToken', () => {
+      if (chrome.runtime.lastError) {
+        console.error('清除token失败:', chrome.runtime.lastError);
+        resolve(false);
+      } else {
+        console.log('已清除用户token');
+        resolve(true);
+      }
+    });
+  });
+}
 
-  if (!submissionStatusElement || !membershipPromoElement || !upgradeLinkElement) {
-    console.error('Required UI elements for status not found!');
+// 刷新登录状态
+async function refreshLoginStatus() {
+  const loginText = document.getElementById('login-text');
+  
+  if (loginText) {
+    loginText.textContent = '正在同步登录状态...';
+  }
+  
+  // 获取当前活动的标签页
+  chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
+    const currentTab = tabs[0];
+    if (currentTab && currentTab.id) {
+      // 向当前标签页发送刷新登录状态的消息
+      chrome.tabs.sendMessage(currentTab.id, { action: "checkAndSyncToken" }, (response) => {
+        if (chrome.runtime.lastError) {
+          console.error("刷新登录状态出错:", chrome.runtime.lastError.message);
+          
+          // 如果错误是因为content script不存在（不是官网页面），提示用户
+          if (loginText) {
+            loginText.textContent = '请先访问官网以同步登录状态';
+          }
+          
+          // 2秒后重新检查登录状态
+          setTimeout(() => checkLoginStatus(), 2000);
+          return;
+        }
+        
+        // 收到content script响应，更新登录状态
+        console.log("收到刷新登录状态响应:", response);
+        setTimeout(() => checkLoginStatus(), 1000);
+      });
+    } else {
+      console.error("找不到当前标签页");
+      if (loginText) loginText.textContent = '同步失败，请重试';
+      setTimeout(() => checkLoginStatus(), 1000);
+    }
+  });
+}
+
+// 退出登录
+async function logout() {
+  const logoutSuccess = await clearAuthToken();
+  
+  if (logoutSuccess) {
+    // 更新界面状态
+    updateUIforLogout();
+    return true;
+  }
+  return false;
+}
+
+// 更新界面为退出状态
+function updateUIforLogout() {
+  // 更新登录状态区域
+  const loginText = document.getElementById('login-text');
+  const loginButton = document.getElementById('login-button');
+  const logoutButton = document.getElementById('logout-button');
+  const startButton = document.getElementById('start-button');
+  
+  if (loginText) loginText.textContent = '未登录';
+  if (loginButton) {
+    loginButton.style.display = 'inline-block';
+    loginButton.onclick = () => window.open(`${WEBSITE_URL}/auth/login`, '_blank');
+  }
+  if (logoutButton) logoutButton.style.display = 'none';
+  
+  // 禁用开始按钮
+  if (startButton) {
+    startButton.disabled = true;
+    startButton.title = "请先登录后再使用";
+    startButton.setAttribute('data-login-disabled', 'true');
+  }
+  
+  // 更新投递状态区域
+  const submissionStatus = document.getElementById('submission-status');
+  const membershipPromo = document.getElementById('membership-promo');
+  const membershipExpiry = document.getElementById('membership-expiry');
+  
+  if (submissionStatus) {
+    submissionStatus.textContent = "请先登录后查看投递状态";
+    submissionStatus.style.color = "#999";
+  }
+  
+  // 隐藏会员相关区域
+  if (membershipPromo) membershipPromo.style.display = 'none';
+  if (membershipExpiry) membershipExpiry.style.display = 'none';
+}
+
+// 检查并更新登录状态
+async function checkLoginStatus() {
+  const loginText = document.getElementById('login-text');
+  const loginButton = document.getElementById('login-button');
+  const logoutButton = document.getElementById('logout-button');
+  const startButton = document.getElementById('start-button');
+  
+  if (!loginText || !loginButton) {
+    console.error('Login status elements not found');
     return;
   }
-
-  if (statusData && typeof statusData.remainingSubmissions !== 'undefined' && typeof statusData.limit !== 'undefined') {
-    submissionStatusElement.textContent = `今日剩余次数: ${statusData.remainingSubmissions} / ${statusData.limit}`;
+  
+  const token = await getAuthToken();
+  if (!token) {
+    // 未登录状态
+    loginText.textContent = '未登录';
+    loginButton.style.display = 'inline-block';
+    loginButton.onclick = () => window.open(`${WEBSITE_URL}/auth/login`, '_blank');
     
-    // 根据是否会员决定是否显示升级引导
-    if (statusData.isMember) {
-      membershipPromoElement.style.display = 'none'; // 会员不显示引导
-    } else {
-      membershipPromoElement.style.display = 'block'; // 非会员显示引导
-      // 设置升级链接 (需要替换为实际的 SaaS 购买页面地址)
-      upgradeLinkElement.href = 'https://your-saas-domain.com/pricing'; 
+    // 隐藏退出按钮
+    if (logoutButton) logoutButton.style.display = 'none';
+    
+    // 禁用开始按钮
+    if (startButton) {
+      startButton.disabled = true;
+      startButton.title = "请先登录后再使用";
+      startButton.setAttribute('data-login-disabled', 'true');
     }
-  } else {
-    submissionStatusElement.textContent = "加载状态失败，请稍后重试";
-    membershipPromoElement.style.display = 'none';
+    
+    return false;
+  }
+  
+  // 已有token，获取用户信息
+  try {
+    chrome.runtime.sendMessage({ action: "getUserStatus" }, (response) => {
+      if (chrome.runtime.lastError || !response) {
+        console.error("获取用户状态失败:", chrome.runtime.lastError);
+        loginText.textContent = '登录状态异常';
+        return;
+      }
+      
+      // 用户名显示
+      if (response.name) {
+        loginText.innerHTML = `欢迎, <span class="user-name">${response.name}</span>`;
+      } else {
+        loginText.textContent = '已登录';
+      }
+      
+      // 显示退出按钮，隐藏登录按钮
+      loginButton.style.display = 'none';
+      if (logoutButton) {
+        logoutButton.style.display = 'inline-block';
+        
+        // 绑定退出点击事件
+        logoutButton.onclick = async () => {
+          logoutButton.disabled = true;
+          logoutButton.textContent = '退出中...';
+          const success = await logout();
+          if (!success) {
+            logoutButton.disabled = false;
+            logoutButton.textContent = '退出';
+            alert('退出登录失败，请重试');
+          }
+        };
+      }
+      
+      // 移除登录禁用标记
+      if (startButton) startButton.removeAttribute('data-login-disabled');
+    });
+    
+    return true;
+  } catch (error) {
+    console.error('检查登录状态失败:', error);
+    loginText.textContent = '登录状态异常';
+    return false;
   }
 }
 
-// 获取用户状态的函数
-async function fetchUserStatus() {
-  const submissionStatusElement = document.getElementById('submission-status');
-  submissionStatusElement.textContent = "正在加载状态..."; // 设置初始加载提示
+// 更新 UI 显示状态的函数
+function updateStatusUI(userStatus) {
+  const submissionStatus = document.getElementById('submission-status');
+  const membershipPromo = document.getElementById('membership-promo');
+  const upgradeLink = document.getElementById('upgrade-link');
+  const membershipExpiry = document.getElementById('membership-expiry');
+  const startButton = document.getElementById('start-button');
 
-  const token = await getAuthToken();
-  if (!token) {
-    console.error('No auth token found. Cannot fetch user status.');
-    updateStatusUI(null); // 显示加载失败
-    // 可以引导用户登录
-    const statusMessage = document.getElementById('status-message');
-    if(statusMessage) statusMessage.textContent = "请先登录您的账户。";
+  if (!submissionStatus) {
+    console.error("Could not find status elements for update");
     return;
   }
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/user/status`, {
-      method: 'GET',
-      headers: {
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
-      }
-    });
-
-    if (!response.ok) {
-      console.error('Error fetching user status:', response.status, response.statusText);
-      const errorData = await response.json().catch(() => ({})); // 尝试解析错误信息
-      console.error('Error details:', errorData);
-      throw new Error(`HTTP error! status: ${response.status}`);
+  if (userStatus.error) {
+    // 处理错误情况
+    submissionStatus.textContent = `状态获取失败: ${userStatus.error}`;
+    return;
+  }
+  
+  // 设置投递状态文本
+  const limit = userStatus.isEffectivelyMember ? 200 : 3;
+  const remaining = userStatus.remainingSubmissions || 0;
+  
+  if (remaining <= 0) {
+    // 没有剩余次数
+    submissionStatus.textContent = `您今日的${limit}次投递已用完`;
+    submissionStatus.style.color = 'red';
+    
+    // 禁用开始按钮
+    if (startButton) {
+      startButton.disabled = true;
+      startButton.title = "已达到今日投递上限";
     }
+  } else {
+    // 有剩余次数
+    submissionStatus.textContent = `今日已投递 ${limit - remaining}/${limit} 次，剩余 ${remaining} 次`;
+    submissionStatus.style.color = remaining < 5 ? 'orange' : 'green';
+    
+    // 启用开始按钮（但仍需检查登录状态）
+    if (startButton && !startButton.hasAttribute('data-login-disabled')) {
+      startButton.disabled = false;
+      startButton.title = "";
+    }
+  }
+  
+  // 会员信息显示
+  if (membershipExpiry && membershipPromo) {
+    if (userStatus.isEffectivelyMember) {
+      // 显示会员到期日期
+      const expiryDate = userStatus.membershipExpiry ? new Date(userStatus.membershipExpiry) : null;
+      if (expiryDate) {
+        const year = expiryDate.getFullYear();
+        const month = (expiryDate.getMonth() + 1).toString().padStart(2, '0');
+        const day = expiryDate.getDate().toString().padStart(2, '0');
+        membershipExpiry.textContent = `会员有效期至: ${year}年${month}月${day}日`;
+        membershipExpiry.style.display = 'block';
+      }
+      membershipPromo.style.display = 'none'; // 隐藏会员促销
+    } else {
+      // 显示会员促销
+      membershipExpiry.style.display = 'none';
+      membershipPromo.style.display = 'block';
+    }
+  }
+}
 
-    const data = await response.json();
-    console.log('User status received:', data);
-    updateStatusUI(data); // 更新 UI
+// 获取用户状态并更新UI
+function fetchUserStatus() {
+  console.log('Fetching user status...');
+  const submissionStatus = document.getElementById('submission-status');
+  const membershipExpiry = document.getElementById('membership-expiry');
+  const membershipPromo = document.getElementById('membership-promo');
+  const upgradeLink = document.getElementById('upgrade-link');
 
-  } catch (error) {
-    console.error('Failed to fetch user status:', error);
-    updateStatusUI(null); // 更新 UI 为失败状态
+  if (!submissionStatus) {
+    console.error("Could not find submission-status element");
+    return;
+  }
+  
+  submissionStatus.textContent = "正在检查投递状态...";
+  
+  // 访问 background.js 获取用户状态
+  chrome.runtime.sendMessage({ action: "getUserStatus" }, (response) => {
+    if (chrome.runtime.lastError) {
+      console.error("Error fetching user status:", chrome.runtime.lastError);
+      submissionStatus.textContent = "无法获取投递状态，请刷新重试";
+      return;
+    }
+    
+    console.log("Received user status from background:", response);
+    
+    // 更新UI
+    updateStatusUI(response);
+  });
+  
+  // 设置会员升级链接
+  if (upgradeLink) {
+    upgradeLink.href = `${WEBSITE_URL}/pricing`; // 使用官网地址变量
+    upgradeLink.target = "_blank";
+  }
+}
+
+// 初始化链接
+function initLinks() {
+  const officialLink = document.getElementById('official-link');
+  const dashboardLink = document.getElementById('dashboard-link');
+  const versionSpan = document.getElementById('version');
+  
+  if (officialLink) {
+    officialLink.href = WEBSITE_URL;
+  }
+  
+  if (dashboardLink) {
+    dashboardLink.href = `${WEBSITE_URL}/dashboard`;
+  }
+  
+  // 获取并显示扩展版本号
+  if (versionSpan && chrome.runtime.getManifest) {
+    try {
+      const manifest = chrome.runtime.getManifest();
+      versionSpan.textContent = `v${manifest.version}`;
+    } catch (error) {
+      console.error('获取版本号失败:', error);
+      versionSpan.textContent = 'v1.0.0';
+    }
   }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
   console.log("Popup DOM fully loaded and parsed");
 
-  // DOM 加载完成后立即获取用户状态
-  fetchUserStatus();
+  // 初始化所有链接
+  initLinks();
+  
+  // 检查登录状态
+  checkLoginStatus().then(isLoggedIn => {
+    // 只有登录后才获取用户状态
+    if (isLoggedIn) {
+      fetchUserStatus();
+    } else {
+      const submissionStatus = document.getElementById('submission-status');
+      if (submissionStatus) {
+        submissionStatus.textContent = "请先登录后查看投递状态";
+        submissionStatus.style.color = "#999";
+      }
+      
+      // 隐藏会员相关区域
+      const membershipPromo = document.getElementById('membership-promo');
+      const membershipExpiry = document.getElementById('membership-expiry');
+      if (membershipPromo) membershipPromo.style.display = 'none';
+      if (membershipExpiry) membershipExpiry.style.display = 'none';
+    }
+  });
+
+  // 为登录文本添加点击事件，作为刷新按钮
+  const loginText = document.getElementById('login-text');
+  if (loginText) {
+    loginText.style.cursor = 'pointer';
+    loginText.title = '点击刷新登录状态';
+    loginText.addEventListener('click', refreshLoginStatus);
+  }
 
   const startButton = document.getElementById('start-button');
   const statusMessage = document.getElementById('status-message');
@@ -103,7 +372,7 @@ document.addEventListener('DOMContentLoaded', function() {
       }
       
       statusMessage.textContent = `准备处理 ${jobCount} 个职位...`;
-      startButton.disabled = true; // 防止重复点击
+      startButton.disabled = true;
 
       // 获取当前活动的标签页
       chrome.tabs.query({ active: true, currentWindow: true }, (tabs) => {
@@ -111,7 +380,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentTab && currentTab.id) {
           // 检查当前页面是否是 Boss 直聘
           if (currentTab.url && currentTab.url.includes('zhipin.com')) {
-             console.log(`Sending startAutoGreeting message to tab ${currentTab.id} with count: ${jobCount}`);
+            console.log(`Sending startAutoGreeting message to tab ${currentTab.id} with count: ${jobCount}`);
             // 向 content script 发送开始处理的消息，并带上处理数量
             chrome.tabs.sendMessage(currentTab.id, { action: "startAutoGreeting", count: jobCount }, (response) => {
               if (chrome.runtime.lastError) {
@@ -120,24 +389,24 @@ document.addEventListener('DOMContentLoaded', function() {
                 startButton.disabled = false;
               } else {
                 console.log("Message sent, response from content script:", response);
-                statusMessage.textContent = response?.status || "已发送开始指令";
+                
+                // 如果是用户达到限制导致的错误，更新UI显示
+                if (response && response.limitReached) {
+                  statusMessage.textContent = "您今日的投递次数已用完！";
+                  updateStatusUI(response);
+                } else {
+                  statusMessage.textContent = response?.status || "已发送开始指令";
+                }
 
                 // --- 如果 content script 返回了更新后的状态，则更新UI ---
-                // 注意：这需要 content_script 在处理完投递后，通过 response 返回最新的状态信息
-                // 例如: response = { status: '...', remainingSubmissions: 199, limit: 200, isMember: true }
                 if (response && typeof response.remainingSubmissions !== 'undefined') {
                   console.log('Updating UI based on response from content script');
                   updateStatusUI(response);
-                } else {
-                  // 如果 content script 没有返回状态，可以选择在这里重新获取一次，或者依赖下一次打开 popup 时刷新
-                  // fetchUserStatus(); // 可以取消注释这行来强制刷新，但可能不是最优选择
                 }
-                // --- 结束处理 --- 
                 
-                // 按钮状态恢复逻辑可以根据需要调整
+                // 按钮状态恢复逻辑
                 setTimeout(() => {
-                    startButton.disabled = false;
-                    // statusMessage.textContent = "可以开始新任务或处理下一个职位了"; // 可以考虑移除或修改这个文本
+                  startButton.disabled = false;
                 }, 1500); // 缩短延迟时间
               }
             });
@@ -155,4 +424,4 @@ document.addEventListener('DOMContentLoaded', function() {
   } else {
     console.error("Could not find start button, status message, or job count input element in popup.");
   }
-}); 
+});

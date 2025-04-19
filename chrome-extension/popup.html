@@ -11,19 +11,65 @@
     }
     h1 {
       font-size: 16px;
+      margin-bottom: 5px;
     }
     button { margin-top: 10px; padding: 8px 15px; cursor: pointer; }
     #status-message { margin-top: 10px; color: grey; }
     label { margin-right: 5px; }
     input[type="number"] { width: 50px; }
+    .header-container {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+    }
+    .login-status {
+      font-size: 12px;
+      color: #666;
+    }
+    .footer {
+      margin-top: 15px;
+      font-size: 12px;
+      text-align: center;
+      border-top: 1px solid #eee;
+      padding-top: 8px;
+    }
+    .footer a {
+      color: #4a89dc;
+      text-decoration: none;
+    }
+    .footer a:hover {
+      text-decoration: underline;
+    }
+    .user-name {
+      font-weight: bold;
+      color: #4a89dc;
+    }
+    .login-button {
+      font-size: 12px;
+      padding: 3px 8px;
+      background: #4a89dc;
+      color: white;
+      border: none;
+      border-radius: 3px;
+      cursor: pointer;
+    }
   </style>
 </head>
 <body>
-  <h1>智能求职助手</h1>
+  <div class="header-container">
+    <h1>智能求职助手</h1>
+    <div id="login-status" class="login-status">
+      <span id="login-text">检查登录状态...</span>
+      <button id="login-button" class="login-button" style="display: none;">去登录</button>
+      <button id="logout-button" class="login-button" style="display: none; background-color: #f44336;">退出</button>
+    </div>
+  </div>
   
   <!-- 新增区域：显示投递状态和会员引导 -->
   <div id="user-status-area" style="margin-bottom: 10px; font-size: 13px;">
     <p id="submission-status" style="margin: 5px 0;">正在加载状态...</p>
+    <p id="membership-expiry" style="margin: 5px 0; color: green; display: none;"></p>
     <div id="membership-promo" style="display: none; margin-top: 5px;"> 
       <span style="color: #ff8c00;">升级会员，解锁每日200次投递！</span>
       <a href="#" id="upgrade-link" target="_blank" style="margin-left: 5px; text-decoration: none;">去升级 ></a>
@@ -37,6 +83,15 @@
     <input type="number" id="job-count" name="job-count" min="1" value="1" step="1">
   </div>
   <button id="start-button" style="padding: 8px 12px; font-size: 14px;">处理当前职位</button>
+  
+  <!-- 新增页脚区域：官网跳转链接 -->
+  <div class="footer">
+    <a href="#" id="official-link" target="_blank">访问官网</a> | 
+    <a href="#" id="dashboard-link" target="_blank">我的控制台</a> | 
+    <span id="version">v1.0.0</span>
+  </div>
+  <!-- 结束新增页脚区域 -->
+  
   <script src="popup.js"></script>
 </body>
 </html> 

@@ -106,22 +106,43 @@ export default function Dashboard() {
   // 格式化会员到期时间
   const formatExpiryDate = (date: Date | null | undefined) => {
     if (!date) return '无到期日期';
-    return format(new Date(date), 'yyyy年MM月dd日', { locale: zhCN });
+    try {
+        return format(new Date(date), 'yyyy年MM月dd日', { locale: zhCN });
+    } catch (error) {
+        console.error("Error formatting date:", date, error);
+        return '日期无效';
+    }
   };
   
   // 获取会员状态详细信息
   const getMembershipInfo = () => {
     if (!user) return { text: '未登录', className: 'bg-gray-100 text-gray-800' };
     
-    if (user.isMember) {
-      const expiryDate = user.membershipExpiry ? new Date(user.membershipExpiry) : null;
-      const expiryText = expiryDate ? `有效期至 ${formatExpiryDate(expiryDate)}` : '永久会员';
+    // 从 AuthContext 获取有效会员状态 (假设 AuthContext 会更新 user 对象包含 isEffectivelyMember)
+    // 或者在这里重新计算
+    const now = new Date();
+    const isEffectivelyMember = !!user.isMember && !!user.membershipExpiry && user.membershipExpiry > now;
+
+    if (isEffectivelyMember) {
+      // 是有效会员，显示到期时间
+      const expiryText = formatExpiryDate(user.membershipExpiry);
       return { 
-        text: `高级会员 (${expiryText})`, 
-        className: 'bg-green-100 text-green-800'
+        text: `高级会员 (有效期至 ${expiryText})`, 
+        className: 'bg-green-100 text-green-800' // 有效会员用绿色
+      };
+    } else if (user.isMember && !isEffectivelyMember) {
+      // 曾经是会员，但已过期
+      const expiryText = formatExpiryDate(user.membershipExpiry);
+      return { 
+        text: `会员已过期 (${expiryText})`, 
+        className: 'bg-red-100 text-red-800' // 过期会员用红色
       };
     } else {
-      return { text: '普通会员', className: 'bg-blue-100 text-blue-800' };
+      // 普通会员
+      return { 
+        text: '普通会员', 
+        className: 'bg-blue-100 text-blue-800' // 普通会员用蓝色
+      };
     }
   };
 
@@ -130,16 +151,8 @@ export default function Dashboard() {
   return (
     <DashboardLayout>
       <div className="space-y-6">
-        {/* 欢迎标题和刷新按钮 */}
-        <div className="flex justify-between items-center">
-          <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
-          <button 
-            onClick={refreshDashboardData}
-            className="px-3 py-1 bg-blue-500 text-white rounded-md text-sm hover:bg-blue-600 transition"
-          >
-            刷新数据
-          </button>
-        </div>
+        {/* 欢迎标题 */}
+        <h1 className="text-2xl font-bold text-gray-900">欢迎回来, {user?.name}</h1>
         
         {/* 数据卡片 */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
@@ -176,7 +189,7 @@ export default function Dashboard() {
                   <tr>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">公司</th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">职位</th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th>
+                    {/* <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">状态</th> */}
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">投递时间</th>
                   </tr>
                 </thead>
@@ -185,20 +198,12 @@ export default function Dashboard() {
                     <tr key={app._id}>
                       <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">{app.companyName}</td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">{app.positionName}</td>
-                      <td className="px-6 py-4 whitespace-nowrap">
-                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${
-                          app.status === 'applied' ? 'bg-yellow-100 text-yellow-800' :
-                          app.status === 'replied' ? 'bg-blue-100 text-blue-800' :
-                          app.status === 'interviewing' ? 'bg-purple-100 text-purple-800' :
-                          app.status === 'offer' ? 'bg-green-100 text-green-800' :
-                          'bg-red-100 text-red-800'
-                        }`}>
-                          {app.status === 'applied' ? '已投递' :
-                           app.status === 'replied' ? '已回复' :
-                           app.status === 'interviewing' ? '面试中' :
-                           app.status === 'offer' ? '已录用' : '已拒绝'}
+                      {/* 移除状态单元格 */}
+                      {/* <td className="px-6 py-4 whitespace-nowrap">
+                        <span className={`px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${ ... }`}>
+                          { ... }
                         </span>
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {new Date(app.appliedAt).toLocaleDateString()}
                       </td>

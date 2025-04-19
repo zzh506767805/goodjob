@@ -41,8 +41,8 @@ export async function POST(req: NextRequest) {
 
     // --- 获取用户信息并检查投递限制 ---
     console.log(`🔍 track-submission: Attempting to find user and check submission limits for userId: ${userId}`);
-    // 同时获取默认简历ID和会员/投递信息
-    const user: IUser | null = await User.findById(userId).select('+defaultResumeId +isMember +dailySubmissions +lastSubmissionDate');
+    // 同时获取默认简历ID和会员/投递信息 (确保包含 membershipExpiry)
+    const user: IUser | null = await User.findById(userId).select('+defaultResumeId +isMember +dailySubmissions +lastSubmissionDate +membershipExpiry');
 
     if (!user) {
       console.log('❌ track-submission: User not found in database for userId:', userId);
@@ -59,28 +59,35 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // **** 新增：判断用户是否为有效会员 ****
+    const now = new Date();
+    const isEffectivelyMember = !!user.isMember && !!user.membershipExpiry && user.membershipExpiry > now;
+    console.log(`ℹ️ track-submission: 用户 ${userId} - isMember: ${user.isMember}, expiry: ${user.membershipExpiry}, isEffectivelyMember: ${isEffectivelyMember}`);
+    // **** 新增结束 ****
+
     const today = new Date();
     let dailySubmissions = user.dailySubmissions ?? 0;
 
     // 检查是否需要重置每日投递次数
     if (!user.lastSubmissionDate || !isSameDay(user.lastSubmissionDate, today)) {
-      console.log(`🔄 track-submission: Resetting daily submissions for user ${userId}. Last submission: ${user.lastSubmissionDate}, Today: ${today}`);
+      console.log(`🔄 track-submission: Resetting daily submissions for user ${userId}.`);
       dailySubmissions = 0; // 重置计数
+      // 注意：这里不直接更新数据库，让 /api/user/status 去处理后台更新
     }
 
-    // 定义会员和非会员的限制
-    const submissionLimit = (user.isMember ?? false) ? 200 : 3;
-    console.log(`📊 track-submission: User ${userId} status - isMember: ${user.isMember ?? false}, Limit: ${submissionLimit}, Current submissions: ${dailySubmissions}`);
+    // 定义会员和非会员的限制 (使用 isEffectivelyMember)
+    const submissionLimit = isEffectivelyMember ? 200 : 3; // 👈 使用实际有效会员状态
+    console.log(`📊 track-submission: User ${userId} status - isEffectivelyMember: ${isEffectivelyMember}, Limit: ${submissionLimit}, Current submissions: ${dailySubmissions}`);
 
     // 检查是否达到投递上限
     if (dailySubmissions >= submissionLimit) {
       console.log(`🚫 track-submission: User ${userId} has reached the submission limit of ${submissionLimit}.`);
-      const message = (user.isMember ?? false)
+      const message = isEffectivelyMember
         ? `您今天的 ${submissionLimit} 次投递机会已用完。`
         : `非会员每日投递上限为 ${submissionLimit} 次。升级会员可享每日 200 次投递特权！`;
       return NextResponse.json(
         { error: message, limitReached: true },
-        { status: 429, headers: corsHeaders } // 429 Too Many Requests
+        { status: 429, headers: corsHeaders }
       );
     }
     console.log(`👍 track-submission: User ${userId} is within submission limits.`);
@@ -131,6 +138,18 @@ export async function POST(req: NextRequest) {
       
       console.log('✅✅ track-submission: Application record created successfully:', newApplication._id);
       
+      // *** 重要：记录本次投递，但不立即增加 dailySubmissions 计数 ***
+      // 而是更新 lastSubmissionDate，让 /api/user/status 下次调用时根据日期差重置或维持计数
+      // （如果需要实时计数，则需要在这里 +1 并更新数据库）
+      
+      // 只是记录，暂时不在这里增加计数和更新数据库
+      // const newSubmissionCount = dailySubmissions + 1;
+      // await User.findByIdAndUpdate(userId, { 
+      //     dailySubmissions: newSubmissionCount,
+      //     lastSubmissionDate: today 
+      // });
+      console.log(`✅ track-submission: 允许用户 ${userId} 投递，今日计数将在下次状态查询时更新。`);
+
       // --- 更新用户投递次数和日期 ---
       user.dailySubmissions = dailySubmissions + 1;
       user.lastSubmissionDate = today;
@@ -140,13 +159,8 @@ export async function POST(req: NextRequest) {
 
       // 返回成功响应
       return NextResponse.json(
-        { 
-          success: true, 
-          message: '投递记录已保存',
-          applicationId: newApplication._id,
-          remainingSubmissions: submissionLimit - (dailySubmissions + 1)
-        }, 
-        { headers: corsHeaders }
+        { message: '投递请求已记录（计数将在下次刷新时更新）' }, 
+        { status: 200, headers: corsHeaders }
       );
       
     } catch (dbError: any) {

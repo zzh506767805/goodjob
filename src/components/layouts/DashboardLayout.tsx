@@ -15,7 +15,6 @@ const navigation: NavItem[] = [
   { name: '仪表盘', href: '/dashboard', icon: '📊' },
   { name: '简历管理', href: '/resumes', icon: '📄' },
   { name: '投递记录', href: '/applications', icon: '📨' },
-  { name: '插件下载', href: '/download-plugin', icon: '🔌' },
   { name: '会员中心', href: '/pricing', icon: '👑' },
 ];
 
@@ -92,11 +91,6 @@ export default function DashboardLayout({ children }: { children: React.ReactNod
             ))}
           </nav>
           <div className="p-4 border-t border-gray-200">
-            {user && (
-              <div className="mb-3 p-3 bg-gray-50 rounded-md">
-                <div className="text-sm font-medium text-gray-700">{user.name}</div>
-              </div>
-            )}
             <button
               onClick={logout}
               className="flex items-center w-full px-4 py-2 text-sm text-red-600 rounded-md hover:bg-red-50"

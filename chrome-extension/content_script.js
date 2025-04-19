@@ -400,6 +400,21 @@ async function processCurrentJobDetails() {
 
 // --- 初始化与 Token 处理 ---
 
+// 检查用户今日投递限制状态
+async function checkUserSubmissionLimits() {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage({ action: "getUserStatus" }, (response) => {
+      if (chrome.runtime.lastError) {
+        console.error("❌ Error checking user submission limits:", chrome.runtime.lastError);
+        reject(chrome.runtime.lastError);
+        return;
+      }
+      console.log("✅ User status check response:", response);
+      resolve(response);
+    });
+  });
+}
+
 // 监听来自网页的 Token 消息 (与之前相同)
 window.addEventListener("message", (event) => {
   if (event.source === window && event.data && event.data.type === "AUTH_TOKEN_FROM_PAGE") {
@@ -421,12 +436,198 @@ window.addEventListener("message", (event) => {
   }
 }, false);
 
+// 修改监听来自 popup 的消息来启动流程
+chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
+  if (request.action === "startAutoGreeting") {
+    console.log(`Received startAutoGreeting command from popup with count: ${request.count}`);
+
+    // 检查是否在职位列表页
+    if (!document.querySelector(SELECTORS.jobListContainer)) {
+        alert("请先确保当前页面是 Boss 直聘的职位列表或推荐页面！");
+        sendResponse({ status: "Error: Not on job list page" });
+        return false; // 同步返回 false
+    }
+
+    // 初始化状态并开始处理第一个职位
+    async function startMultiJobProcessing() {
+      // 先检查用户是否已达到投递限制
+      try {
+        const userStatus = await checkUserSubmissionLimits();
+        if (userStatus.limitReached || userStatus.remainingSubmissions <= 0) {
+          // 用户已达到投递上限
+          let message = "您今日的投递次数已用完！";
+          if (userStatus.isEffectivelyMember) {
+            message += "作为会员，您每日可投递200次。";
+          } else {
+            message += "非会员每日限3次。升级会员可享受每日200次投递特权！";
+          }
+          alert(message);
+          sendResponse({ 
+            status: "Error: User has reached submission limit", 
+            limitReached: true,
+            remainingSubmissions: 0,
+            limit: userStatus.isEffectivelyMember ? 200 : 3,
+            isMember: userStatus.isEffectivelyMember
+          });
+          return;
+        }
+
+        // 检查剩余次数是否足够处理请求的数量
+        if (userStatus.remainingSubmissions < request.count) {
+          const confirmMsg = `您今日还剩${userStatus.remainingSubmissions}次投递机会，少于请求的${request.count}次。是否继续并只处理${userStatus.remainingSubmissions}次？`;
+          if (!confirm(confirmMsg)) {
+            sendResponse({ 
+              status: "Cancelled: Not enough remaining submissions", 
+              limitReached: false,
+              remainingSubmissions: userStatus.remainingSubmissions,
+              limit: userStatus.isEffectivelyMember ? 200 : 3,
+              isMember: userStatus.isEffectivelyMember
+            });
+            return;
+          }
+          // 如果用户确认，则修改count为剩余次数
+          request.count = userStatus.remainingSubmissions;
+        }
+      } catch (error) {
+        console.warn("❗ Failed to check user submission limits. Proceeding without limitation check:", error);
+        // 出错时，继续执行，不阻止用户使用
+      }
+
+      await clearState(); // 开始前先清理旧状态
+      const initialState = {
+        status: 'LOOKING_FOR_NEXT_JOB', // 初始状态设为寻找第一个职位
+        totalCount: request.count || 1,
+        processedCount: 0,
+        currentJobIndex: -1, // 初始索引为-1，这样第一个就是0
+        greetingToSend: null
+      };
+      await updateState(initialState);
+      console.log("Initialized state for multi-job processing:", initialState);
+
+      // 发回响应给 popup
+      sendResponse({ status: `Processing started for ${initialState.totalCount} jobs` });
+
+      // 触发处理第一个职位的逻辑
+      console.log("Triggering checkAndProcessNextJob to start the loop...");
+      await checkAndProcessNextJob(); // 调用修正后的检查函数开始流程
+
+    }
+
+    startMultiJobProcessing();
+    return true; // 异步处理，返回 true
+  } else if (request.action === "checkAndSyncToken") {
+    // 处理来自popup的刷新登录状态请求
+    console.log("收到请求：检查并同步token");
+    
+    // 判断是否在官网页面
+    if (window.location.hostname.includes('goodjob-gules.vercel.app') || 
+        window.location.hostname === 'localhost') {
+      try {
+        // 从localStorage中获取token
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+        
+        if (token) {
+          console.log("找到auth token，发送给extension...");
+          // 向background发送token
+          chrome.runtime.sendMessage({ action: "saveAuthToken", token: token }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error("向background发送token错误:", chrome.runtime.lastError.message);
+              sendResponse({ success: false, error: chrome.runtime.lastError.message });
+            } else if (response && !response.success) {
+              console.error("background保存token失败:", response.error);
+              sendResponse({ success: false, error: response.error });
+            } else {
+              console.log("成功将token从网站发送到扩展。");
+              sendResponse({ success: true, message: "登录状态已同步" });
+            }
+          });
+          return true; // 异步响应
+        } else {
+          console.log("当前页面未找到token");
+          sendResponse({ success: false, error: "当前页面未找到登录token" });
+        }
+      } catch (error) {
+        console.error("检查token时出错:", error);
+        sendResponse({ success: false, error: error.message });
+      }
+    } else {
+      console.log("当前页面不是官网，无法同步登录状态");
+      sendResponse({ success: false, error: "请先访问官网进行登录" });
+    }
+    return false;
+  }
+  return false; // 其他消息类型，同步返回 false
+});
+
 // --- 脚本入口点 ---
+
+// 在官网页面检查并获取token
+function checkForTokenOnWebsite() {
+  // 判断是否在官网页面
+  if (window.location.hostname.includes('goodjob-gules.vercel.app') || 
+      window.location.hostname === 'localhost') {
+    
+    console.log("Content script running on official website. Checking for token...");
+    
+    // 尝试从localStorage中获取token
+    const checkForToken = () => {
+      try {
+        // 从localStorage中获取token
+        const token = localStorage.getItem('authToken') || localStorage.getItem('token');
+        
+        if (token) {
+          console.log("Found auth token on website. Sending to extension...");
+          // 向扩展发送token
+          chrome.runtime.sendMessage({ action: "saveAuthToken", token: token }, (response) => {
+            if (chrome.runtime.lastError) {
+              console.error("Error sending token to background:", chrome.runtime.lastError.message);
+            } else if (response && !response.success) {
+              console.error("Background script failed to save token:", response.error);
+            } else {
+              console.log("Token successfully sent from website to extension.");
+            }
+          });
+        }
+      } catch (error) {
+        console.error("Error checking for token on website:", error);
+      }
+    };
+    
+    // 页面加载完成后检查一次
+    checkForToken();
+    
+    // 创建一个MutationObserver监听页面变化，可能是登录状态变化
+    const observer = new MutationObserver((mutations) => {
+      // 当页面有变化时，尝试再次获取token
+      checkForToken();
+    });
+    
+    // 配置observer监听整个文档的子树变化
+    observer.observe(document.body, { 
+      childList: true, 
+      subtree: true 
+    });
+    
+    // 监听localStorage变化的事件
+    window.addEventListener('storage', (event) => {
+      if (event.key === 'authToken' || event.key === 'token') {
+        console.log("LocalStorage token change detected");
+        checkForToken();
+      }
+    });
+    
+    // 定期检查token是否存在（每30秒检查一次）
+    setInterval(checkForToken, 30000);
+  }
+}
 
 // 页面加载后，根据当前页面和状态决定执行哪个检查函数
 async function initializeScript() {
     console.log("Content script initializing. Current URL:", window.location.href);
     await new Promise(resolve => setTimeout(resolve, 500)); // 等待页面初步加载
+    
+    // 检查是否在官网并获取token
+    checkForTokenOnWebsite();
 
     const state = await getState();
     console.log("Initial state on load:", state);
@@ -455,44 +656,4 @@ async function initializeScript() {
     }
 }
 
-initializeScript();
-
-// 监听来自 popup 的消息来启动流程
-chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "startAutoGreeting") {
-    console.log(`Received startAutoGreeting command from popup with count: ${request.count}`);
-
-    // 检查是否在职位列表页
-    if (!document.querySelector(SELECTORS.jobListContainer)) {
-        alert("请先确保当前页面是 Boss 直聘的职位列表或推荐页面！");
-        sendResponse({ status: "Error: Not on job list page" });
-        return false; // 同步返回 false
-    }
-
-    // 初始化状态并开始处理第一个职位
-    async function startMultiJobProcessing() {
-      await clearState(); // 开始前先清理旧状态
-      const initialState = {
-        status: 'LOOKING_FOR_NEXT_JOB', // 初始状态设为寻找第一个职位
-        totalCount: request.count || 1,
-        processedCount: 0,
-        currentJobIndex: -1, // 初始索引为-1，这样第一个就是0
-        greetingToSend: null
-      };
-      await updateState(initialState);
-      console.log("Initialized state for multi-job processing:", initialState);
-
-      // 发回响应给 popup
-      sendResponse({ status: `Processing started for ${initialState.totalCount} jobs` });
-
-      // 触发处理第一个职位的逻辑
-      console.log("Triggering checkAndProcessNextJob to start the loop...");
-      await checkAndProcessNextJob(); // 调用修正后的检查函数开始流程
-
-    }
-
-    startMultiJobProcessing();
-    return true; // 异步处理，返回 true
-  }
-  return false; // 其他消息类型，同步返回 false
-}); 
+initializeScript(); 

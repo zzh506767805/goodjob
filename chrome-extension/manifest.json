@@ -1,13 +1,9 @@
 {
   "manifest_version": 3,
   "name": "智能求职助手",
-  "version": "0.1.0",
-  "description": "自动浏览招聘网站职位，并根据您的简历生成个性化打招呼内容。",
-  "permissions": [
-    "activeTab",
-    "storage",
-    "scripting"
-  ],
+  "version": "1.0.0",
+  "description": "智能求职助手 - 让求职更高效",
+  "permissions": ["storage", "activeTab", "tabs"],
   "action": {
     "default_popup": "popup.html",
     "default_icon": {
@@ -26,7 +22,15 @@
   },
   "content_scripts": [
     {
-      "matches": ["https://www.zhipin.com/*"],
+      "matches": ["*://*.zhipin.com/*"],
+      "js": ["content_script.js"]
+    },
+    {
+      "matches": [
+        "*://goodjob-gules.vercel.app/*", 
+        "http://localhost:3000/*",
+        "https://localhost:3000/*"
+      ],
       "js": ["content_script.js"]
     }
   ],
@@ -37,6 +41,16 @@
     }
   ],
   "externally_connectable": {
-    "matches": ["http://localhost:3000/*"]
-  }
+    "matches": [
+      "*://goodjob-gules.vercel.app/*", 
+      "http://localhost:3000/*",
+      "https://localhost:3000/*"
+    ]
+  },
+  "host_permissions": [
+    "*://*.zhipin.com/*",
+    "*://goodjob-gules.vercel.app/*",
+    "http://localhost:3000/*",
+    "https://localhost:3000/*"
+  ]
 } 

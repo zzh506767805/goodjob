@@ -19,6 +19,7 @@ const alipaySdk = new AlipaySdk({
 });
 
 export async function POST(req: NextRequest) {
+  console.log('🚀 Alipay Notify Endpoint Hit! --- TRY 3');
   console.log('🔔 收到支付宝异步通知');
   let notificationData: Record<string, string> | null = null;
 

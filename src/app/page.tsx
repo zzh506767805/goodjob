@@ -7,8 +7,12 @@ import { useAuth } from '@/contexts/AuthContext';
 export default function Home() {
   const { user, isAuthenticated, isLoading } = useAuth();
 
+  // **** 新增：判断有效会员状态 ****
+  const isEffectivelyMember = 
+    user?.isMember && user?.membershipExpiry && new Date(user.membershipExpiry) > new Date();
+
   return (
-    <main className="flex min-h-screen flex-col items-center justify-between p-6">
+    <main className="flex min-h-screen flex-col items-center justify-between p-8 md:p-24 bg-gradient-to-b from-blue-50 to-white">
       <div className="max-w-6xl w-full flex flex-col items-center justify-center space-y-12 py-16">
         {/* 标题区域 */}
         <div className="text-center space-y-4">
@@ -26,8 +30,8 @@ export default function Home() {
             // 用户已登录
             <div className="flex flex-col items-center gap-2">
               <span className="text-lg font-semibold text-gray-800">欢迎, {user.name}!</span>
-              <span className={`px-3 py-1 text-sm font-medium rounded-full ${user.isMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
-                {user.isMember ? '高级会员' : '普通会员'}
+              <span className={`px-3 py-1 text-sm font-medium rounded-full ${isEffectivelyMember ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>
+                {isEffectivelyMember ? '高级会员' : '普通会员'}
               </span>
               <Link href="/dashboard"
                 className="mt-2 px-6 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition"

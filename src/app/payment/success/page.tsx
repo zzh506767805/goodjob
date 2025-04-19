@@ -1,43 +1,82 @@
 'use client';
 
-import React, { useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import React, { useEffect, useState, Suspense } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 
-/**
- * 支付成功后的跳转页面
- */
-const PaymentSuccessPage: React.FC = () => {
+// 新增一个包裹组件来使用 useSearchParams，因为 PaymentSuccessPage 本身不是 Suspense 的子组件
+const PaymentSuccessContent: React.FC = () => {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const outTradeNo = searchParams.get('out_trade_no');
+  const tradeNo = searchParams.get('trade_no');
 
-  // 可选：几秒后自动跳转到用户中心或其他页面
+  const [loading, setLoading] = useState(true);
+  const [statusMessage, setStatusMessage] = useState('正在确认订单状态...');
+
   useEffect(() => {
-    const timer = setTimeout(() => {
-      // router.push('/dashboard'); // 跳转到仪表盘或其他目标页面
-      console.log('支付成功，可以考虑跳转到用户中心');
-    }, 5000); // 5秒后跳转
+    if (!outTradeNo) {
+      setStatusMessage('无法获取订单信息，请检查 URL 或联系客服。');
+      setLoading(false);
+      return;
+    }
 
-    return () => clearTimeout(timer); // 组件卸载时清除计时器
-  }, [router]);
+    console.log(`支付成功跳转，开始查询订单状态: ${outTradeNo}, 支付宝交易号: ${tradeNo}`);
+
+    const checkStatus = async () => {
+      setLoading(true);
+      setStatusMessage('正在为您确认订单状态，请稍候...');
+      try {
+        const response = await fetch('/api/payment/check-status', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ outTradeNo }),
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          setStatusMessage(result.message || '会员状态已成功更新！');
+        } else {
+          setStatusMessage(result.error || '订单状态确认失败，请稍后刷新或联系客服。');
+        }
+      } catch (error) {
+        console.error('查询订单状态失败:', error);
+        setStatusMessage('网络请求失败，无法确认订单状态，请联系客服。');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    checkStatus();
+
+  }, [outTradeNo, tradeNo]);
 
   return (
     <div style={styles.container}>
-      <h1 style={styles.title}>🎉 支付成功！</h1>
+      <h1 style={styles.title}>🎉 支付确认中...</h1>
       <p style={styles.message}>
-        感谢您的购买！您的会员权限将在几分钟内生效。
+        {loading ? '请稍候...' : statusMessage}
       </p>
-      <p style={styles.message}>
-        如果长时间未生效，请联系客服。
-      </p>
-      <Link href="/dashboard" style={styles.link}>
-        返回用户中心
-      </Link>
-      {/* 
-        或者显示一些订单信息（从 URL 参数获取，但要注意安全）
-        例如：const searchParams = useSearchParams();
-              const outTradeNo = searchParams.get('out_trade_no'); 
-      */}
+      {!loading && (
+        <Link href="/dashboard" style={styles.link}>
+          前往用户中心
+        </Link>
+      )}
     </div>
+  );
+};
+
+/**
+ * 支付成功后的跳转页面 - 使用 Suspense 包裹
+ */
+const PaymentSuccessPage: React.FC = () => {
+  return (
+    <Suspense fallback={<div style={styles.container}>正在加载支付结果...</div>}>
+      <PaymentSuccessContent />
+    </Suspense>
   );
 };
 
