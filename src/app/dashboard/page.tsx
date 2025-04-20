@@ -183,6 +183,9 @@ export default function Dashboard() {
     }
   };
 
+  const downloadUrl = 'https://github.com/zzh506767805/goodjob/releases/download/v1.0.0/GoodJob_v1.0.zip';
+  const downloadFilename = 'GoodJob_v1.0.zip';
+
   return (
     <DashboardLayout>
       <div className="space-y-6">
@@ -245,24 +248,56 @@ export default function Dashboard() {
           )}
         </div>
         
-        {/* 开始使用指南 */}
+        {/* 开始使用指南 - 更新内容 */}
         <div className="bg-white shadow rounded-lg p-6">
           <h2 className="text-lg font-medium text-gray-900 mb-4">开始使用</h2>
           <div className="space-y-4">
-            <GuideStep 
-              number="1" 
-              title="安装浏览器插件" 
-              description="下载并安装我们的Chrome插件，以便在Boss直聘上自动操作" 
-            />
+            {/* 第一步：下载和安装插件 */}
+            <div className="flex">
+              <div className="flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full bg-blue-100 text-blue-600 font-bold">
+                1
+              </div>
+              <div className="ml-4">
+                <h3 className="text-md font-medium text-gray-900">下载并安装浏览器插件</h3>
+                <p className="text-sm text-gray-500 mb-2">
+                  点击下方按钮下载插件压缩包 (.zip)，然后按照说明手动加载到 Chrome 浏览器。
+                </p>
+                <a
+                  href={downloadUrl}
+                  download={downloadFilename}
+                  className="inline-block px-4 py-2 text-sm bg-blue-600 text-white rounded hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-opacity-75 mb-2"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  下载插件 (v1.0.0)
+                </a>
+                <details className="text-xs text-gray-500 cursor-pointer">
+                    <summary>查看安装说明</summary>
+                    <ol className="list-decimal list-inside space-y-1 mt-1 pl-2">
+                        <li>下载插件压缩包 (.zip 文件)。</li>
+                        <li>将下载的 .zip 文件解压到一个您方便找到的文件夹。</li>
+                        <li>打开Chrome浏览器，在地址栏输入 <code>chrome://extensions/</code> 并按回车键。</li>
+                        <li>在页面右上角，打开"开发者模式"的开关。</li>
+                        <li>点击页面左上角的"加载已解压的扩展程序"按钮。</li>
+                        <li>选择您刚才解压出来的那个插件文件夹。</li>
+                        <li>安装完成！插件图标会出现在浏览器工具栏。</li>
+                    </ol>
+                </details>
+              </div>
+            </div>
+            
+            {/* 第二步：登录同步 */}
             <GuideStep 
               number="2" 
               title="登录账号同步" 
-              description="在浏览器插件和官网上使用相同的账号登录，以便同步您的权限和投递记录" 
+              description="在插件弹窗和本官网上使用相同的账号登录，以便同步您的会员权限和投递记录。"
             />
+            
+            {/* 第三步：开始投递 */}
             <GuideStep 
               number="3" 
               title="开始投递职位" 
-              description="在Boss直聘浏览职位时，插件会自动生成个性化打招呼语并协助您投递" 
+              description="打开 Boss 直聘网站，浏览职位列表或职位详情页时，点击浏览器右上角的插件图标，即可开始使用一键打招呼、批量投递等功能。"
             />
           </div>
         </div>

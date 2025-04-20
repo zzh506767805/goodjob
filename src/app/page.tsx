@@ -50,7 +50,7 @@ export default function Home() {
               <Link href="/auth/register"
                 className="px-6 py-3 bg-gray-200 text-gray-800 rounded-lg font-semibold hover:bg-gray-300 transition"
               >
-                注册
+                注册，开始使用
               </Link>
             </>
           )}
@@ -75,28 +75,37 @@ export default function Home() {
           />
         </div>
 
-        {/* 浏览器插件介绍 */}
+        {/* 浏览器插件介绍 - 更新 */}
         <div className="w-full bg-gray-100 rounded-xl p-8 mt-12">
           <div className="flex flex-col md:flex-row items-center gap-8">
             <div className="md:w-1/2 space-y-4">
               <h2 className="text-2xl font-bold text-gray-900">浏览器插件助力求职</h2>
               <p className="text-gray-700">
-                我们的Chrome浏览器插件可以帮助你在Boss直聘等求职平台上实现一键投递。
+                安装我们的Chrome浏览器插件，即可在Boss直聘等求职平台实现一键投递。
                 无需频繁切换窗口，直接在招聘网站使用AI助手分析职位、生成打招呼语并发送。
               </p>
-              <div className="pt-4">
-                <Link href="/download-plugin"
-                  className="px-4 py-2 bg-gray-800 text-white rounded-lg font-medium hover:bg-gray-900 transition"
-                >
-                  下载插件
-                </Link>
-              </div>
+              <p className="text-gray-700 pt-2">
+                {isAuthenticated ? (
+                  <>
+                    您可以前往 <Link href="/dashboard" className="text-blue-600 hover:underline">我的控制台</Link> 下载并安装插件。
+                  </>
+                ) : (
+                  <>
+                    请 <Link href="/auth/login" className="text-blue-600 hover:underline">登录</Link> 或 <Link href="/auth/register" className="text-blue-600 hover:underline">注册</Link> 后，前往控制台下载并安装插件。
+                  </>
+                )}
+              </p>
             </div>
             <div className="md:w-1/2">
-              <div className="bg-white rounded-lg shadow-lg p-4">
-                <div className="h-48 bg-gray-200 rounded flex items-center justify-center">
-                  <p className="text-gray-500">插件截图展示</p>
-                </div>
+              <div className="bg-white rounded-lg shadow-lg overflow-hidden"> 
+                {/* 替换为新的截图 */}
+                <Image 
+                  src="/images/screenshot-20250420-234506.png" 
+                  alt="智能求职助手插件截图"
+                  width={600} // 根据实际图片调整
+                  height={400} // 根据实际图片调整
+                  className="object-contain" // 或者 object-cover 根据需要调整
+                />
               </div>
             </div>
           </div>
