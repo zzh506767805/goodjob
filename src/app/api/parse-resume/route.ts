@@ -2,9 +2,11 @@ import { NextRequest, NextResponse } from 'next/server';
 import OpenAI from 'openai';
 import Resume from '@/models/Resume';
 import connectToDatabase from '@/lib/mongodb';
-import path from 'path';
-import fs from 'fs/promises';
-import { verifyAuth } from '../../../lib/authUtils';
+// 不再需要 path 和 fs
+// import path from 'path';
+// import fs from 'fs/promises';
+// 不再需要 verifyAuth，因为 userId 会从请求体传递
+// import { verifyAuth } from '../../../lib/authUtils'; 
 
 // 初始化OpenAI客户端，使用代理服务器
 const openai = new OpenAI({
@@ -12,137 +14,94 @@ const openai = new OpenAI({
   baseURL: 'https://proxy.tainanle.online/v1', // 使用代理服务器
 });
 
+// 从旧代码迁移并保持不变的 Prompt 函数
+function createParsePrompt(resumeText: string): string {
+  return `
+  分析以下简历内容，提取结构化信息，包括：
+  1. 个人信息（姓名、邮箱、电话）
+  2. 技能列表
+  3. 工作经验（公司、职位、时间段、项目及业绩情况）
+  4. 教育经历（学校、学位、时间段）
+  
+  你必须以JSON格式返回，格式如下：
+  {
+    "personalInfo": {
+      "name": "",
+      "email": "",
+      "phone": ""
+    },
+    "skills": ["技能1", "技能2", ...],
+    "experience": [
+      {
+        "company": "",
+        "position": "",
+        "duration": "",
+        "description": ""
+      }
+    ],
+    "education": [
+      {
+        "institution": "",
+        "degree": "",
+        "period": ""
+      }
+    ]
+  }
+  
+  简历内容：
+  ${resumeText}
+  
+  注意：你的回复必须是有效的JSON格式，不要包含任何额外的文本、解释或代码块标记。
+  `;
+}
+
+// 这个API现在作为后台任务处理程序
 export async function POST(req: NextRequest) {
-  console.log('开始处理简历解析请求');
+  console.log('【后台解析】开始处理简历解析请求');
   try {
     await connectToDatabase();
-    console.log('数据库连接成功');
+    console.log('【后台解析】数据库连接成功');
 
-    // 验证 Token 并获取 userId
-    const userId = verifyAuth(req);
-    if (!userId) {
-      console.log('用户验证失败');
-      return NextResponse.json({ error: '未授权或 Token 无效' }, { status: 401 });
-    }
-    console.log('用户验证成功: ', userId);
-
-    // 获取简历ID
+    // 不再需要验证Token，直接从请求体获取 resumeId 和 userId
+    // const userId = verifyAuth(req);
+    // if (!userId) { ... }
+    
     const body = await req.json();
-    const { resumeId } = body;
-    if (!resumeId) {
-      console.log('未提供简历ID');
-      return NextResponse.json({ error: '请提供简历ID' }, { status: 400 });
+    const { resumeId, userId } = body;
+    
+    if (!resumeId || !userId) {
+      console.error('【后台解析】请求体缺少 resumeId 或 userId');
+      return NextResponse.json({ error: '请求参数不完整' }, { status: 400 });
     }
-    console.log('处理简历ID: ', resumeId);
+    console.log(`【后台解析】处理简历ID: ${resumeId}, 用户ID: ${userId}`);
 
-    // 查找简历 (确保使用从 Token 中获取的 userId 进行查询)
-    const resume = await Resume.findOne({ _id: resumeId, userId: userId });
+    // 查找简历 (使用传递的 userId 和 resumeId)
+    const resume = await Resume.findOne({ _id: resumeId, userId: userId }).select('name rawText parsedData'); // 选择需要的字段
     if (!resume) {
-      console.log('找不到简历或无权访问');
+      console.error(`【后台解析】找不到简历或无权访问, resumeId: ${resumeId}, userId: ${userId}`);
       return NextResponse.json({ error: '找不到简历或无权访问' }, { status: 404 });
     }
-    console.log('找到简历: ', resume.name);
+    console.log(`【后台解析】找到简历: ${resume.name}`);
 
-    // 读取简历文件
-    const filePath = path.join(process.cwd(), 'public', resume.fileUrl);
-    console.log('简历文件路径: ', filePath);
-    
-    // 检查文件是否存在
-    try {
-      await fs.access(filePath);
-      console.log('文件访问成功');
-    } catch (error) {
-      console.error('简历文件访问错误:', filePath, error);
-      return NextResponse.json({ error: '简历文件不存在或无法访问' }, { status: 404 });
+    // 检查是否已经解析过 (避免重复解析)
+    if (resume.parsedData && Object.keys(resume.parsedData).length > 0 && resume.parsedData.personalInfo) {
+      console.log(`【后台解析】简历 ${resumeId} 已解析过，跳过。`);
+      return NextResponse.json({ message: '简历已解析过' });
     }
 
-    // 提取简历文本
-    let resumeText = '';
-    if (resume.fileUrl.endsWith('.pdf')) {
-      try {
-        console.log('开始解析PDF文件');
-        const dataBuffer = await fs.readFile(filePath);
-        console.log('文件读取成功，大小: ', dataBuffer.length, '字节');
-        
-        try {
-          // 使用pdf-parse-fork库解析PDF
-          const pdfParseModule = await import('pdf-parse-fork');
-          const pdfParse = pdfParseModule.default || pdfParseModule;
-          
-          console.log('PDF解析库加载成功，开始调用解析函数');
-          
-          // 添加额外的错误处理器来捕获可能的弃用警告
-          process.on('warning', e => {
-            console.warn('Node警告:', e.name, e.message);
-            console.warn('警告来源堆栈:', e.stack);
-          });
-          
-          const pdfData = await pdfParse(dataBuffer, {
-            max: 50  // 限制处理页数
-          });
-          
-          resumeText = pdfData.text;
-          console.log('PDF解析成功，提取文本长度:', resumeText.length);
-          
-          // 检查提取的文本是否有效
-          if (!resumeText || resumeText.length < 50) {
-            console.warn('提取的PDF文本过短，可能存在问题:', resumeText);
-            return NextResponse.json({ error: 'PDF文本提取结果不完整或无效' }, { status: 500 });
-          }
-        } catch (pdfError) {
-          console.error('PDF解析错误:', pdfError);
-          return NextResponse.json({ error: 'PDF解析失败', details: (pdfError as Error).message }, { status: 500 });
-        }
-      } catch (fileError) {
-        console.error('文件读取错误:', fileError);
-        return NextResponse.json({ error: '文件读取失败', details: (fileError as Error).message }, { status: 500 });
-      }
-    } else {
-      // 对于Word文件等其他格式，可能需要其他库来处理
-      console.log('不支持的文件格式:', resume.fileUrl);
-      return NextResponse.json({ error: '暂不支持解析此格式' }, { status: 400 });
+    // 获取原始文本
+    const resumeText = resume.rawText;
+    if (!resumeText || resumeText.trim() === '' || resumeText.startsWith('PDF解析失败')) {
+      console.error(`【后台解析】无法解析：简历 ${resumeId} 的原始文本无效或包含错误:`, resumeText);
+      // 可以选择更新状态或记录错误，但这里仅返回错误
+      return NextResponse.json({ error: '简历原始文本无效或提取失败' }, { status: 400 });
     }
+    console.log(`【后台解析】获取到原始文本，长度: ${resumeText.length}`);
 
-    // 创建结构化的提示
-    const prompt = `
-    分析以下简历内容，提取结构化信息，包括：
-    1. 个人信息（姓名、邮箱、电话）
-    2. 技能列表
-    3. 工作经验（公司、职位、时间段、职责描述）
-    4. 教育经历（学校、学位、时间段）
-    
-    你必须以JSON格式返回，格式如下：
-    {
-      "personalInfo": {
-        "name": "",
-        "email": "",
-        "phone": ""
-      },
-      "skills": ["技能1", "技能2", ...],
-      "experience": [
-        {
-          "company": "",
-          "position": "",
-          "duration": "",
-          "description": ""
-        }
-      ],
-      "education": [
-        {
-          "institution": "",
-          "degree": "",
-          "period": ""
-        }
-      ]
-    }
-    
-    简历内容：
-    ${resumeText}
-    
-    注意：你的回复必须是有效的JSON格式，不要包含任何额外的文本、解释或代码块标记。
-    `;
+    // 创建结构化的提示 (使用上面的函数)
+    const prompt = createParsePrompt(resumeText);
 
-    console.log(`开始调用OpenAI API解析简历，使用模型: ${process.env.OPENAI_API_MODEL || "gpt-3.5-turbo"}`);
+    console.log(`【后台解析】开始调用OpenAI API解析简历，使用模型: ${process.env.OPENAI_API_MODEL || "gpt-4.1-mini"}`);
     
     try {
       const response = await openai.chat.completions.create({
@@ -152,21 +111,21 @@ export async function POST(req: NextRequest) {
         response_format: { type: "json_object" }  // 强制JSON格式响应
       });
       
-      console.log('OpenAI API调用成功');
+      console.log('【后台解析】OpenAI API调用成功');
       const aiResponse = response.choices[0].message.content;
       
       if (!aiResponse) {
-        console.error('OpenAI返回了空响应');
-        return NextResponse.json({ error: 'AI服务返回了空响应' }, { status: 500 });
+        console.error('【后台解析】OpenAI返回了空响应');
+        throw new Error('AI服务返回了空响应'); // 抛出错误由外层catch处理
       }
       
       let parsedData;
       try {
         // 尝试解析JSON
         parsedData = JSON.parse(aiResponse);
-        console.log('成功解析JSON响应');
+        console.log('【后台解析】成功解析JSON响应');
       } catch (jsonError) {
-        console.error('JSON解析错误:', jsonError, '原始响应:', aiResponse);
+        console.error('【后台解析】JSON解析错误:', jsonError, '原始响应:', aiResponse);
         
         // 尝试清理响应中的非JSON内容
         const cleanedResponse = aiResponse
@@ -175,56 +134,47 @@ export async function POST(req: NextRequest) {
           
         try {
           parsedData = JSON.parse(cleanedResponse);
-          console.log('清理后成功解析JSON');
+          console.log('【后台解析】清理后成功解析JSON');
         } catch (secondJsonError) {
-          console.error('二次JSON解析错误:', secondJsonError);
-          return NextResponse.json({ 
-            error: '无法解析AI响应', 
-            details: '返回的数据不是有效的JSON格式'
-          }, { status: 500 });
+          console.error('【后台解析】二次JSON解析错误:', secondJsonError);
+          throw new Error('无法解析AI响应: 返回的数据不是有效的JSON格式');
         }
       }
 
       // 验证解析出的数据包含所需字段
       if (!parsedData.personalInfo || !parsedData.skills || 
           !parsedData.experience || !parsedData.education) {
-        console.error('解析出的数据结构不完整:', parsedData);
-        return NextResponse.json({ 
-          error: '解析出的数据结构不完整', 
-          parsedData 
-        }, { status: 500 });
+        console.error('【后台解析】解析出的数据结构不完整:', parsedData);
+        throw new Error('解析出的数据结构不完整');
       }
 
       // 更新简历解析数据
-      await Resume.updateOne(
-        { _id: resumeId },
+      const updateResult = await Resume.updateOne(
+        { _id: resumeId, userId: userId }, // 确保更新属于该用户的简历
         { $set: { parsedData } }
       );
-      console.log('简历解析数据已保存到数据库');
-
-      return NextResponse.json({ 
-        message: '简历解析成功', 
-        parsedData 
-      });
-    } catch (openaiError: any) {
-      console.error('OpenAI API调用失败:', openaiError.message);
-      if (openaiError.response) {
-        console.error('OpenAI错误详情:', {
-          status: openaiError.response.status,
-          headers: openaiError.response.headers,
-          data: openaiError.response.data
-        });
+      if (updateResult.modifiedCount > 0) {
+        console.log(`【后台解析】简历 ${resumeId} 解析数据已成功保存到数据库`);
+      } else {
+        console.warn(`【后台解析】更新简历 ${resumeId} 时 modifiedCount 为 0 (可能数据未改变或未找到?)`);
       }
+      
+      // 后台任务成功，返回 200 OK
+      return NextResponse.json({ message: '简历后台解析成功' });
+
+    } catch (openaiError: any) {
+      console.error('【后台解析】OpenAI API调用失败:', openaiError.message);
+      // 记录错误，但让函数正常结束，避免重试 (如果适用)
       return NextResponse.json({ 
         error: '调用AI服务失败', 
         details: openaiError.message 
-      }, { status: 500 });
+      }, { status: 500 }); // 返回500表示处理失败
     }
 
   } catch (error: any) {
-    console.error('简历解析过程发生未预期错误:', error);
+    console.error('【后台解析】简历解析过程发生未预期错误:', error);
     return NextResponse.json({ 
-      error: '简历解析失败', 
+      error: '简历后台解析失败', 
       details: error.message 
     }, { status: 500 });
   }

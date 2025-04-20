@@ -5,24 +5,31 @@ import { jwtVerify } from 'jose';
 const protectedPaths = [
   '/api/resumes',
   '/api/applications',
-  '/api/parse-resume',
+  // 注意：/api/parse-resume 现在由内部触发，不再需要在这里保护
+  // '/api/parse-resume', 
 ];
 
 // 忽略验证的路径
 const ignorePaths = [
   '/api/auth/login',
   '/api/auth/register',
+  '/api/parse-resume', // 将后台解析路由添加到忽略列表
 ];
 
 export async function middleware(request: NextRequest) {
   const path = request.nextUrl.pathname;
 
   // 检查是否是API路径并且不在忽略列表中
+  // 调整逻辑：如果路径在忽略列表，直接放行
+  if (ignorePaths.some(prefix => path.startsWith(prefix))) {
+    return NextResponse.next();
+  }
+  
+  // 检查是否是受保护的API路径
   const isProtectedPath = protectedPaths.some(prefix => path.startsWith(prefix));
-  const isIgnoredPath = ignorePaths.some(prefix => path.startsWith(prefix));
 
-  // 如果不是API路径或者在忽略列表中，直接放行
-  if (!isProtectedPath || isIgnoredPath) {
+  // 如果不是受保护的API路径，也放行
+  if (!isProtectedPath) {
     return NextResponse.next();
   }
 

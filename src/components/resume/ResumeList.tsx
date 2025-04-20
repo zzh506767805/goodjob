@@ -7,7 +7,6 @@ import React from 'react';
 interface Resume {
   _id: string;
   name: string;
-  fileUrl: string;
   isDefault: boolean;
   parsedData: any;
   createdAt: string;

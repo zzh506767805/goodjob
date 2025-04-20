@@ -1,58 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
-import { v4 as uuidv4 } from 'uuid';
 import path from 'path';
 import Resume from '@/models/Resume';
 import User from '@/models/User';
 import connectToDatabase from '@/lib/mongodb';
-import OpenAI from 'openai';
 import pdfParse from 'pdf-parse-fork';
-
-// 初始化OpenAI客户端 (复用parse-resume中的配置)
-const openai = new OpenAI({
-  apiKey: process.env.OPENAI_API_KEY,
-  baseURL: 'https://proxy.tainanle.online/v1', // 使用代理服务器
-});
-
-// 从parse-resume route迁移并调整的OpenAI Prompt
-function createParsePrompt(resumeText: string): string {
-  return `
-  分析以下简历内容，提取结构化信息，包括：
-  1. 个人信息（姓名、邮箱、电话）
-  2. 技能列表
-  3. 工作经验（公司、职位、时间段、职责描述）
-  4. 教育经历（学校、学位、时间段）
-  
-  你必须以JSON格式返回，格式如下：
-  {
-    "personalInfo": {
-      "name": "",
-      "email": "",
-      "phone": ""
-    },
-    "skills": ["技能1", "技能2", ...],
-    "experience": [
-      {
-        "company": "",
-        "position": "",
-        "duration": "",
-        "description": ""
-      }
-    ],
-    "education": [
-      {
-        "institution": "",
-        "degree": "",
-        "period": ""
-      }
-    ]
-  }
-  
-  简历内容：
-  ${resumeText}
-  
-  注意：你的回复必须是有效的JSON格式，不要包含任何额外的文本、解释或代码块标记。
-  `;
-}
 
 // 获取用户所有简历
 export async function GET(req: NextRequest) {
@@ -81,7 +32,7 @@ export async function GET(req: NextRequest) {
   }
 }
 
-// 上传新简历并直接解析
+// 上传简历并触发后台解析
 export async function POST(req: NextRequest) {
   try {
     await connectToDatabase();
@@ -125,74 +76,79 @@ export async function POST(req: NextRequest) {
       console.log(`PDF文本提取成功，长度: ${resumeText.length}`);
       if (!resumeText || resumeText.length < 50) {
         console.warn('提取的PDF文本过短');
-        return NextResponse.json({ error: 'PDF文本提取结果不完整或无效' }, { status: 500 });
+        // 文本过短也先保存，让后台解析尝试处理，不在此处直接报错返回
+        // return NextResponse.json({ error: 'PDF文本提取结果不完整或无效' }, { status: 500 });
       }
     } catch (pdfError: any) {
       console.error('PDF解析错误:', pdfError);
-      return NextResponse.json({ error: 'PDF解析失败', details: pdfError.message }, { status: 500 });
+      // 解析失败也先保存，让后台解析尝试处理，记录原始错误
+      // return NextResponse.json({ error: 'PDF解析失败', details: pdfError.message }, { status: 500 });
+      resumeText = `PDF解析失败: ${pdfError.message}`; // 记录错误信息到rawText
     }
 
-    // 3. 调用OpenAI进行结构化
-    let parsedData: any = {};
-    try {
-      const prompt = createParsePrompt(resumeText);
-      const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_API_MODEL || "gpt-4.1-mini",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 0.1,
-        response_format: { type: "json_object" } // 强制JSON
-      });
-      const aiResponse = response.choices[0].message.content;
-      if (!aiResponse) {
-        throw new Error('AI服务返回了空响应');
-      }
-      try {
-        parsedData = JSON.parse(aiResponse);
-         // 基本验证确保核心结构存在
-        if (!parsedData.personalInfo || !parsedData.skills || !parsedData.experience || !parsedData.education) {
-          console.error('AI解析结果结构不完整:', parsedData);
-          throw new Error('AI解析结果结构不完整');
-        }
-        console.log('AI解析成功');
-      } catch (jsonError: any) {
-        console.error('解析AI响应JSON失败:', jsonError, '原始响应:', aiResponse);
-        throw new Error('无法解析AI响应');
-      }
-    } catch (openaiError: any) {
-      console.error('调用OpenAI失败:', openaiError);
-      return NextResponse.json({ error: '调用AI服务失败', details: openaiError.message }, { status: 500 });
-    }
-
-    // 4. 保存简历记录 (包含解析数据，不含fileUrl)
+    // 3. 保存简历记录 (只包含原始文本，parsedData为空)
     const resume = await Resume.create({
       userId,
       name: resumeName,
       isDefault: true,
-      parsedData: parsedData, // 保存解析后的数据
-      rawText: resumeText, // 可选：保存原始文本
+      parsedData: {}, // 初始为空
+      rawText: resumeText, // 保存原始文本或错误信息
     });
     console.log(`创建新简历记录成功: ${resume._id}`);
 
-    // 5. 更新用户默认简历ID
+    // 4. 更新用户默认简历ID
     await User.updateOne(
       { _id: userId },
       { $set: { defaultResumeId: resume._id } }
     );
     console.log(`更新用户 ${userId} 的默认简历ID为: ${resume._id}`);
 
-    // 6. 返回成功响应
+    // 5. 触发后台解析 (异步，非阻塞)
+    const resumeIdStr = resume._id.toString();
+    // 获取当前部署的 URL 或默认 localhost
+    const backendUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'; 
+    const parseApiUrl = `${backendUrl}/api/parse-resume`;
+    console.log(`触发后台解析: ${parseApiUrl} for resumeId: ${resumeIdStr}`);
+    
+    fetch(parseApiUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        // 注意：后台任务通常需要某种认证方式，这里暂时省略
+        // 如果 parse-resume API 需要认证，需要在这里添加相应的头
+        // 'Authorization': `Bearer YOUR_INTERNAL_TOKEN`
+        // 或者使用其他内部认证机制
+      },
+      body: JSON.stringify({ resumeId: resumeIdStr, userId: userId }) // 传递 resumeId 和 userId
+    })
+    .then(async (response) => {
+      if (!response.ok) {
+        // 记录后台任务触发失败，但不影响主流程
+        const errorText = await response.text();
+        console.error(`后台解析任务触发失败: ${response.status} ${response.statusText}`, errorText);
+      } else {
+        console.log(`后台解析任务成功触发 for resumeId: ${resumeIdStr}`);
+      }
+    })
+    .catch(error => {
+      // 网络或其他错误导致触发失败
+      console.error('触发后台解析任务时发生网络错误:', error);
+    });
+
+    // 6. 返回成功响应 (告知用户上传成功，正在后台解析)
     return NextResponse.json({ 
-      message: existingResume ? '简历已替换并解析成功' : '简历上传并解析成功',
+      message: existingResume ? '简历已替换，正在后台解析' : '简历上传成功，正在后台解析',
       resume: {
         id: resume._id,
         name: resume.name,
         isDefault: resume.isDefault,
-        parsedData: resume.parsedData, // 返回解析数据
+        // 不再返回 parsedData
         createdAt: resume.createdAt
       } 
     }, { status: 201 });
+
   } catch (error: any) {
-    console.error('简历上传和解析失败:', error);
-    return NextResponse.json({ error: '简历上传和解析失败', details: error.message }, { status: 500 });
+    console.error('简历上传或触发解析失败:', error);
+    return NextResponse.json({ error: '简历上传或触发解析失败', details: error.message }, { status: 500 });
   }
 } 

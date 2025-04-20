@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import DashboardLayout from '@/components/layouts/DashboardLayout';
 import ResumeUploader from '@/components/resume/ResumeUploader';
 import ResumeList from '@/components/resume/ResumeList';
@@ -9,7 +9,6 @@ import { useAuth } from '@/contexts/AuthContext';
 interface Resume {
   _id: string;
   name: string;
-  fileUrl: string;
   isDefault: boolean;
   parsedData: any;
   createdAt: string;
@@ -20,14 +19,10 @@ export default function Resumes() {
   const [resumes, setResumes] = useState<Resume[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState('');
-
-  useEffect(() => {
-    if (token) {
-      fetchResumes();
-    }
-  }, [token]);
+  const pollingIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const fetchResumes = async () => {
+    console.log("fetchResumes called");
     setIsLoading(true);
     setError('');
     
@@ -43,7 +38,18 @@ export default function Resumes() {
       }
       
       const data = await response.json();
+      console.log("Fetched resumes:", data.resumes);
       setResumes(data.resumes);
+      
+      const currentlyParsing = data.resumes.find((r: Resume) => 
+        !r.parsedData || !r.parsedData.personalInfo || !r.parsedData.personalInfo.name
+      );
+      if (!currentlyParsing && pollingIntervalRef.current) {
+        console.log("All resumes seem parsed, stopping polling.");
+        clearInterval(pollingIntervalRef.current);
+        pollingIntervalRef.current = null;
+      }
+      
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -51,64 +57,69 @@ export default function Resumes() {
     }
   };
 
-  const handleUploadSuccess = (resumeData: any) => {
-    // 上传成功后，重新获取完整的简历列表
-    fetchResumes().then(() => {
-      // 如果是PDF文件且上传成功，启动轮询检查解析状态
-      if (resumeData && resumeData.fileUrl && resumeData.fileUrl.endsWith('.pdf')) {
-        startPollingResumeStatus(resumeData.id);
+  useEffect(() => {
+    if (token) {
+      fetchResumes();
+    }
+    
+    return () => {
+      if (pollingIntervalRef.current) {
+        console.log("Component unmounting, clearing polling interval.");
+        clearInterval(pollingIntervalRef.current);
       }
-    }); 
+    };
+  }, [token]);
+
+  const handleUploadSuccess = (resumeData: any) => {
+    console.log("handleUploadSuccess called with:", resumeData);
+    setResumes(prev => [
+      {
+        _id: resumeData.id,
+        name: resumeData.name,
+        isDefault: resumeData.isDefault,
+        parsedData: {},
+        createdAt: resumeData.createdAt || new Date().toISOString()
+      },
+    ]);
+    
+    if (resumeData && resumeData.id) {
+      startPollingResumeStatus(resumeData.id);
+    } else {
+        console.error("无法启动轮询，缺少简历ID");
+        setTimeout(fetchResumes, 1000); 
+    }
   };
 
-  // 轮询检查简历解析状态
   const startPollingResumeStatus = (resumeId: string) => {
+    if (pollingIntervalRef.current) {
+      clearInterval(pollingIntervalRef.current);
+    }
+    
     console.log('开始轮询检查简历解析状态:', resumeId);
-    
-    // 设置计数器，最多轮询10次（约50秒）
     let pollCount = 0;
-    const maxPolls = 10;
+    const maxPolls = 12;
     
-    const pollInterval = setInterval(async () => {
+    pollingIntervalRef.current = setInterval(async () => {
       pollCount++;
       console.log(`轮询检查 #${pollCount} 简历解析状态:`, resumeId);
       
-      // 获取最新简历数据
       try {
-        const response = await fetch('/api/resumes', {
-          headers: {
-            'Authorization': `Bearer ${token}`
-          }
-        });
+        await fetchResumes(); 
         
-        if (response.ok) {
-          const data = await response.json();
-          const updatedResume = data.resumes.find((r: any) => r._id === resumeId);
-          
-          // 检查是否已解析（是否有个人信息数据）
-          if (updatedResume && 
-              updatedResume.parsedData && 
-              updatedResume.parsedData.personalInfo && 
-              updatedResume.parsedData.personalInfo.name) {
-            console.log('简历已完成解析:', resumeId);
-            // 更新状态并停止轮询
-            setResumes(data.resumes);
-            clearInterval(pollInterval);
-          } else if (pollCount >= maxPolls) {
-            // 达到最大轮询次数，停止轮询
-            console.log('达到最大轮询次数，停止检查解析状态');
-            clearInterval(pollInterval);
-          }
-        } else {
-          // 请求失败，停止轮询
-          console.error('轮询简历数据失败');
-          clearInterval(pollInterval);
+        if (pollCount >= maxPolls && pollingIntervalRef.current) {
+          console.log('达到最大轮询次数，停止检查解析状态');
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
         }
+        
       } catch (error) {
         console.error('轮询检查过程出错:', error);
-        clearInterval(pollInterval);
+        if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+        }
       }
-    }, 5000); // 每5秒检查一次
+    }, 5000);
   };
 
   const handleParseResume = async (resumeId: string) => {
@@ -119,7 +130,7 @@ export default function Resumes() {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ resumeId })
+        body: JSON.stringify({ resumeId, userId: null })
       });
       
       if (!response.ok) {
@@ -128,12 +139,15 @@ export default function Resumes() {
       
       const data = await response.json();
       
-      // 更新简历列表中的解析数据
       setResumes(prev => prev.map(resume => 
         resume._id === resumeId 
           ? { ...resume, parsedData: data.parsedData } 
           : resume
       ));
+      if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+      }
     } catch (err: any) {
       alert('解析简历失败: ' + err.message);
     }
@@ -152,14 +166,17 @@ export default function Resumes() {
         throw new Error('删除简历失败');
       }
       
-      // 从列表中移除该简历
       setResumes(prev => prev.filter(resume => resume._id !== resumeId));
+      
+      if (pollingIntervalRef.current) {
+          clearInterval(pollingIntervalRef.current);
+          pollingIntervalRef.current = null;
+      }
     } catch (err: any) {
       alert('删除简历失败: ' + err.message);
     }
   };
 
-  // 检查是否有已存在的简历
   const hasExistingResume = resumes.length > 0;
 
   return (
@@ -173,13 +190,11 @@ export default function Resumes() {
           </div>
         )}
         
-        {/* 上传简历组件 */}
         <ResumeUploader 
           onUploadSuccess={handleUploadSuccess} 
           hasExistingResume={hasExistingResume} 
         />
         
-        {/* 简历列表 */}
         {isLoading ? (
           <div className="bg-white shadow rounded-lg p-6">
             <p className="text-center text-gray-500">正在加载简历...</p>
