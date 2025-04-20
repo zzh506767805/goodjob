@@ -3,26 +3,27 @@ import mongoose, { Schema, models, Document } from 'mongoose';
 export interface IResume extends Document {
   userId: mongoose.Types.ObjectId;
   name: string;
-  fileUrl: string;
-  parsedData: {
-    skills: string[];
-    experience: Array<{
-      company: string;
-      position: string;
-      duration: string;
-      description: string;
+  fileUrl?: string;
+  parsedData?: {
+    skills?: string[];
+    experience?: Array<{
+      company?: string;
+      position?: string;
+      duration?: string;
+      description?: string;
     }>;
-    education: Array<{
-      institution: string;
-      degree: string;
-      period: string;
+    education?: Array<{
+      institution?: string;
+      degree?: string;
+      period?: string;
     }>;
-    personalInfo: {
-      name: string;
-      email: string;
-      phone: string;
+    personalInfo?: {
+      name?: string;
+      email?: string;
+      phone?: string;
     };
   };
+  rawText?: string;
   isDefault: boolean;
   createdAt: Date;
 }
@@ -39,26 +40,16 @@ const ResumeSchema = new Schema<IResume>({
   },
   fileUrl: { 
     type: String, 
-    required: [true, '请提供简历文件URL'] 
+    required: false
   },
   parsedData: {
-    skills: [String],
-    experience: [{
-      company: String,
-      position: String,
-      duration: String,
-      description: String
-    }],
-    education: [{
-      institution: String,
-      degree: String,
-      period: String
-    }],
-    personalInfo: {
-      name: String,
-      email: String,
-      phone: String
-    }
+    type: Map,
+    of: Schema.Types.Mixed,
+    required: false
+  },
+  rawText: {
+    type: String,
+    required: false
   },
   isDefault: { 
     type: Boolean, 

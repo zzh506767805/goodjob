@@ -146,7 +146,7 @@ export async function POST(req: NextRequest) {
     
     try {
       const response = await openai.chat.completions.create({
-        model: process.env.OPENAI_API_MODEL || "gpt-3.5-turbo",
+        model: process.env.OPENAI_API_MODEL || "gpt-4.1-mini",
         messages: [{ role: "user", content: prompt }],
         temperature: 0.1,
         response_format: { type: "json_object" }  // 强制JSON格式响应
