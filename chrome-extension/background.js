@@ -100,9 +100,12 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}` // 将 Token 放入请求头
+            'Authorization': `Bearer ${token}`,
+            'Cache-Control': 'no-cache, no-store, must-revalidate',
+            'Pragma': 'no-cache',
+            'Expires': '0'
           },
-          body: JSON.stringify(request.details) // 发送职位信息
+          body: JSON.stringify(request.details)
         });
 
         if (!response.ok) {
@@ -254,5 +257,38 @@ console.log("Background: onMessageExternal listener added.");
 
 // 监听插件安装或更新事件
 chrome.runtime.onInstalled.addListener(() => {
-  console.log("插件已安装或更新。");
-}); 
+  console.log("插件已安装或更新，准备刷新简历...");
+  forceRefreshUserResume();
+});
+
+async function forceRefreshUserResume() {
+  try {
+    const result = await chrome.storage.local.get(['authToken']);
+    const token = result.authToken;
+    if (!token) {
+      console.error("No auth token found for resume refresh");
+      return false;
+    }
+    
+    // 调用刷新接口
+    const apiUrl = `${API_BASE_URL}/api/resumes/refresh-default`;
+    const response = await fetch(apiUrl, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Cache-Control': 'no-cache, no-store, must-revalidate'
+      }
+    });
+    
+    if (!response.ok) {
+      console.error("Failed to refresh resume data");
+      return false;
+    }
+    
+    console.log("✅ Successfully refreshed resume data");
+    return true;
+  } catch (error) {
+    console.error("Error refreshing resume:", error);
+    return false;
+  }
+} 

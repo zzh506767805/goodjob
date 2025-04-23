@@ -7,27 +7,31 @@ const CHAT_PAGE_LOAD_DELAY = 3000; // 预估聊天页面加载时间
 const NAVIGATION_DELAY = 2000; // 页面跳转后的等待时间 (毫秒)
 const NEXT_JOB_CLICK_DELAY = 1500; // 点击下一个职位后的等待时间
 
-// --- CSS 选择器 (恢复原始选择器，并补充循环必须的) ---
+// --- CSS 选择器 (使用用户提供的精确选择器，并保留扩展的描述选择器) ---
 const SELECTORS = {
-  // 原始选择器 (用于提取激活职位信息和点击)
-  jobTitle: '#wrap > div.job-recommend-main > div.job-recommend-result > div > div > div.job-list-container > ul > div.job-card-wrap.active > li > div.job-info > div > a',
-  companyName: '#wrap > div.job-recommend-main > div.job-recommend-result > div > div > div.job-list-container > ul > div.job-card-wrap.active > li > div.job-card-footer > a > span',
-  jobDescriptionContainer: 'p.desc', // 详情区描述
-  startChatButton: '#wrap > div.job-recommend-main > div.job-recommend-result > div > div > div.job-detail-container > div > div.job-detail-header > div.job-detail-op.clearfix > a.op-btn.op-btn-chat',
-  continueChatButtonPopup: 'body > div.greet-boss-dialog > div.greet-boss-container > div.greet-boss-footer > a.default-btn.sure-btn', 
+  // 使用用户提供的新选择器
+  jobTitle: '#wrap > div.page-jobs-main > div.job-recommend-result > div > div > div.job-list-container > ul > div.card-area.has-flag.is-seen > div > li > div.job-info > div > a',
+  companyName: '#wrap > div.page-jobs-main > div.job-recommend-result > div > div > div.job-list-container > ul > div.card-area.has-flag.is-seen > div > li > div.job-card-footer > a > span',
+  // 保留之前扩展的描述选择器
+  jobDescriptionContainer: '.job-sec .text, .job-description .text, .job-box .text, p.desc', 
+
+  // --- 保留沟通和列表相关的选择器 ---
+  startChatButton: '#wrap > div.page-jobs-main > div.job-recommend-result > div > div > div.job-detail-container > div.job-detail-box > div.job-detail-header > div.job-detail-op.clearfix > a.op-btn.op-btn-chat', // 使用用户提供的新选择器
+  continueChatButtonPopup: 'body > div.greet-boss-dialog > div.greet-boss-container > div.greet-boss-footer > a.default-btn.sure-btn',
   chatInput: '#chat-input',
   chatSendButton: '#container > div > div > div.chat-conversation > div.message-controls > div > div:nth-child(2) > div.chat-op > button',
-
-  // 补充的选择器 (用于列表循环)
-  jobListContainer: '.job-list-container', // 识别列表页的容器
-  jobListItems: '.job-list-container .job-card-wrap', // 获取所有职位卡片
-  nextJobTitleLink: '.job-info a' // 在任意职位卡片内查找标题链接用于点击
+  jobListContainer: '.job-list-container', 
+  jobListItems: '.job-list-container .job-card-wrap, .job-list-container .card-area', // 稍微扩展列表项查找
+  nextJobTitleLink: '.job-info a, .job-title' // 稍微扩展标题链接查找
 };
 
-// --- 辅助函数 ---
+// --- 辅助函数 (恢复原始简单的 getTextContent) ---
 function getTextContent(selector) {
   const element = document.querySelector(selector);
-  if (!element) return null;
+  if (!element) {
+      console.warn(`[getTextContent] Element not found for selector: ${selector}`); // 添加警告
+      return null;
+  }
 
   let visibleText = '';
   // 遍历所有子节点
@@ -316,86 +320,100 @@ async function checkAndProcessNextJob() {
 
 // 处理当前选中的职位详情 (提取信息 -> 获取招呼语 -> 点击沟通)
 async function processCurrentJobDetails() {
-    let state = await getState(); // Use let to allow modification
+    let state = await getState(); 
     if (state.status !== 'PROCESSING_JOB_DETAILS') {
         console.warn("Called processCurrentJobDetails with incorrect state:", state.status);
-        return; // 防止意外调用
+        return; 
     }
 
-    console.log(`Processing details for job index: ${state.currentJobIndex}. Using original selectors for active elements.`);
+    console.log(`Processing details for job index: ${state.currentJobIndex}. Using user-provided specific selectors.`);
 
-    // 1. 提取当前选中职位的信息 (使用原始的、精确的选择器)
-    console.log("Extracting job details using specific selectors for the active job...");
-    const jobDetailContainer = document.querySelector('.job-detail-container');
-  const jobDetails = {
-    jobTitle: getTextContent(SELECTORS.jobTitle),
-    companyName: getTextContent(SELECTORS.companyName),
-        jobDescription: jobDetailContainer ? getTextContentFromElement(jobDetailContainer.querySelector(SELECTORS.jobDescriptionContainer)) : null,
+    // 1. 提取当前选中职位的信息 (使用用户提供的精确选择器)
+    console.log("Extracting job details using specific selectors...");
+    // 注意：这里的 jobDetailContainer 查找描述，可能与标题/公司基于列表项不同层级
+    // 但我们主要依赖 SELECTORS.jobTitle 和 SELECTORS.companyName
+    const jobDetailContainer = document.querySelector('.job-detail-container'); // 尝试找到详情容器用于描述提取
+
+    const jobDetails = {
+        jobTitle: getTextContent(SELECTORS.jobTitle),         // 使用用户提供的新 jobTitle 选择器
+        companyName: getTextContent(SELECTORS.companyName),     // 使用用户提供的新 companyName 选择器
+        jobDescription: jobDetailContainer ? getTextContentFromElement(jobDetailContainer.querySelector(SELECTORS.jobDescriptionContainer)) : getTextContent(SELECTORS.jobDescriptionContainer), // 尝试在详情容器或全局找描述
         jobRequirements: ""
-  };
+    };
 
+    // 辅助函数定义
     function getTextContentFromElement(element) {
-        return element ? element.textContent.replace(/\s+/g, ' ').trim() : null;
+        if (!element) return ""; 
+        return element.innerText ? element.innerText.replace(/\s+/g, ' ').trim() : element.textContent.replace(/\s+/g, ' ').trim();
+    }
+    
+    console.log("Attempted extraction results:", jobDetails); 
+
+    // 检查提取结果 (主要检查标题和公司，因为描述选择器是推测的)
+    if (!jobDetails.jobTitle || !jobDetails.companyName) { // 修改检查条件为标题和公司名
+        console.error("Failed to extract essential job details (Title or Company Name)... stopping.", "Title found:", jobDetails.jobTitle, "Company found:", jobDetails.companyName);
+        alert(`未能提取到当前选中职位的关键信息。\n找到的标题: ${jobDetails.jobTitle || '无'}\n找到的公司: ${jobDetails.companyName || '无'}\n请检查页面或联系技术支持。流程停止。`);
+        await clearState();
+        return;
+    }
+    // 如果描述也没找到，给个警告但继续
+    if (!jobDetails.jobDescription) {
+       console.warn("Could not extract job description using selector:", SELECTORS.jobDescriptionContainer);
+       jobDetails.jobDescription = "[描述提取失败]"; // 给个默认值
     }
 
-  if (!jobDetails.jobTitle || !jobDetails.jobDescription) {
-        console.error("Failed to extract essential job details... stopping."); // Simplified log
-        alert("未能提取到当前选中职位的关键信息（标题或描述），流程停止。");
-        await clearState();
-    return;
-  }
-  console.log("Extracted job details:", jobDetails);
+    console.log("Successfully extracted job details:", jobDetails);
 
-    // *** 新增：将当前处理的职位详情存入 state ***
+    // *** 后续代码不变 ***
     state.currentProcessingJobDetails = jobDetails; 
 
-  // 2. 发送给 Background 获取打招呼语
-  console.log("Sending job details to background script...");
-  try {
-    const response = await chrome.runtime.sendMessage({ action: "processJobPage", details: jobDetails });
-    console.log("Received response from background:", response);
-
-    if (response && response.success && response.greeting) {
-      const greetingToSend = response.greeting;
-      console.log("Greeting received:", greetingToSend);
-
-            // 3. 更新状态和消息，准备跳转到聊天页面
-            // *** 把上面保存了 jobDetails 的 state 传给 updateState ***
-            state.status = 'WAITING_TO_SEND_ON_CHAT_PAGE';
-            state.greetingToSend = greetingToSend;
-            await updateState(state); // Now state includes currentProcessingJobDetails
-            console.log("State updated (incl. job details). Ready to navigate to chat page.", state);
-
-            // 4. 点击"立即沟通" (使用原始选择器)
-            console.log("Attempting step 4: Click Start Chat Button using original selector:", SELECTORS.startChatButton);
-      if (await safeClick(SELECTORS.startChatButton)) {
-        // 5. 等待并点击弹窗中的"继续沟通"
-        console.log("Start chat button clicked successfully. Waiting for popup...");
-                await new Promise(resolve => setTimeout(resolve, getRandomDelay(ACTION_DELAY_MIN, ACTION_DELAY_MAX)));
-                console.log("Attempting step 5: Click Continue Chat Button in Popup using selector:", SELECTORS.continueChatButtonPopup);
-        if (await safeClick(SELECTORS.continueChatButtonPopup)) {
-                    console.log("Clicked continue in popup. Navigation to chat page should occur.");
-                    // 页面即将跳转，后续由聊天页面的 content script 的 checkAndPerformPendingSend 接管
+    // 2. 发送给 Background 获取打招呼语
+    console.log("Sending job details to background script...");
+    try {
+      const response = await chrome.runtime.sendMessage({ action: "processJobPage", details: jobDetails });
+      console.log("Received response from background:", response);
+  
+      if (response && response.success && response.greeting) {
+        const greetingToSend = response.greeting;
+        console.log("Greeting received:", greetingToSend);
+  
+              // 3. 更新状态和消息，准备跳转到聊天页面
+              state.status = 'WAITING_TO_SEND_ON_CHAT_PAGE';
+              state.greetingToSend = greetingToSend;
+              await updateState(state); 
+              console.log("State updated (incl. job details). Ready to navigate to chat page.", state);
+  
+              // 4. 点击"立即沟通" 
+              console.log("Attempting step 4: Click Start Chat Button using selector:", SELECTORS.startChatButton);
+        if (await safeClick(SELECTORS.startChatButton)) {
+          // 5. 等待并点击弹窗中的"继续沟通"
+          console.log("Start chat button clicked successfully. Waiting for popup...");
+                  await new Promise(resolve => setTimeout(resolve, getRandomDelay(ACTION_DELAY_MIN, ACTION_DELAY_MAX)));
+                  console.log("Attempting step 5: Click Continue Chat Button in Popup using selector:", SELECTORS.continueChatButtonPopup);
+          if (await safeClick(SELECTORS.continueChatButtonPopup)) {
+                      console.log("Clicked continue in popup. Navigation to chat page should occur.");
+                      // 页面即将跳转
+          } else {
+                      console.error("Failed to click continue button in popup. Stopping.");
+                      alert("未能点击弹窗中的'继续沟通'按钮，流程停止。");
+                      await clearState();
+          }
         } else {
-                    console.error("Failed to click continue button in popup. Stopping.");
-                    alert("未能点击弹窗中的'继续沟通'按钮，流程停止。");
-                    await clearState();
+                  console.error("Failed to click start chat button using selector. Stopping.");
+                  // 提示用户检查 startChatButton 选择器
+                  alert(`未能找到或点击'立即沟通'按钮 (Selector: ${SELECTORS.startChatButton})，页面结构可能已改变。流程停止。`);
+                  await clearState();
         }
       } else {
-                console.error("Failed to click start chat button using original selector. Stopping.");
-                alert("未能找到或点击'立即沟通'按钮 (使用原始选择器)，流程停止。");
-                await clearState();
+        console.error("Failed to get greeting from background:", response?.error);
+              alert(`生成打招呼语失败: ${response?.error || '未知错误'}，流程停止。`);
+              await clearState();
       }
-    } else {
-      console.error("Failed to get greeting from background:", response?.error);
-            alert(`生成打招呼语失败: ${response?.error || '未知错误'}，流程停止。`);
-            await clearState();
+    } catch (error) {
+      console.error("Error during job processing flow:", error);
+          alert(`处理过程中发生错误: ${error.message}，流程停止。`);
+          await clearState();
     }
-  } catch (error) {
-    console.error("Error during job processing flow:", error);
-        alert(`处理过程中发生错误: ${error.message}，流程停止。`);
-        await clearState();
-  }
 }
 
 // --- 初始化与 Token 处理 ---
@@ -622,8 +640,10 @@ function checkForTokenOnWebsite() {
 // 页面加载后，根据当前页面和状态决定执行哪个检查函数
 async function initializeScript() {
     console.log("Content script initializing. Current URL:", window.location.href);
-    await new Promise(resolve => setTimeout(resolve, 500)); // 等待页面初步加载
     
+    // --- 稍微增加初始等待时间 ---
+    await new Promise(resolve => setTimeout(resolve, 800)); // 增加到 800ms
+
     // 检查是否在官网并获取token
     checkForTokenOnWebsite();
 
@@ -632,10 +652,44 @@ async function initializeScript() {
 
     // 再次确认修改点: 放宽聊天页面的 URL 检查
     const isOnChatPage = window.location.href.includes('/chat/im?') || window.location.href.includes('/web/geek/chat');
-    // *** 修改点: 结合URL和元素判断是否在列表页 ***
-    const isOnListPageByURL = window.location.href.includes('/web/geek/job-recommend');
-    const hasListContainer = document.querySelector(SELECTORS.jobListContainer);
-    const isOnListPage = isOnListPageByURL || hasListContainer;
+
+    // *** 修改点：扩展列表页 URL 检查，并增加元素查找重试 ***
+    let isOnListPage = false;
+    const listPageURLs = ['/web/geek/job-recommend', '/web/geek/jobs']; // 包含 /jobs
+    const isOnListPageByURL = listPageURLs.some(urlPart => window.location.href.includes(urlPart));
+
+    if (isOnListPageByURL) {
+        // 如果 URL 匹配，尝试查找列表容器，给它一点时间加载
+        console.log("URL matches potential list page. Checking for list container element...");
+        let attempts = 0;
+        const maxAttempts = 5; // 最多尝试5次
+        const retryDelay = 500; // 每次间隔 500ms
+        while (attempts < maxAttempts && !isOnListPage) {
+            const hasListContainer = document.querySelector(SELECTORS.jobListContainer);
+            if (hasListContainer) {
+                console.log(`List container found after ${attempts + 1} attempt(s).`);
+                isOnListPage = true;
+            } else {
+                attempts++;
+                console.log(`List container not found (attempt ${attempts}/${maxAttempts}). Retrying in ${retryDelay}ms...`);
+                if (attempts < maxAttempts) {
+                    await new Promise(resolve => setTimeout(resolve, retryDelay));
+                }
+            }
+        }
+        if (!isOnListPage) {
+             console.warn("URL matched list page, but list container element could not be found after multiple attempts.");
+        }
+    } else {
+        // 如果 URL 都不匹配，才考虑单独检查元素 (作为后备，可能性不大)
+        const hasListContainer = document.querySelector(SELECTORS.jobListContainer);
+        if (hasListContainer) {
+             console.log("URL didn't match, but list container element was found. Treating as list page.");
+             isOnListPage = true;
+        }
+    }
+    // *** 结束修改点 ***
+
 
     if (isOnChatPage) {
         console.log("On chat page, checking for pending send...");
@@ -644,11 +698,12 @@ async function initializeScript() {
         console.log("On job list/recommend page, checking for next job action...");
         await checkAndProcessNextJob(); // 在列表页检查是否要处理下一个
     } else {
-        console.log("Not on a recognized page for automated actions (chat or list/recommend).");
+        console.log("Not on a recognized page for automated actions (chat or list/recommend/jobs). Current URL:", window.location.href);
         // 如果状态异常但不在已知页面，清理状态
         if (state.status !== 'IDLE') {
            console.warn(`Script initialized on an unrecognized page (${window.location.href}) with active state: ${state.status}. Clearing state.`);
-           alert(`脚本在未知页面 (${window.location.href}) 加载，但存在未完成的任务状态，已重置。`);
+           // 保留 alert 方便用户感知问题，但可以考虑只在开发模式下提示
+           alert(`脚本在非预期的页面 (${window.location.href}) 加载，但存在未完成的任务状态，已重置。如果您认为这是列表页，请联系技术支持更新页面识别规则。`);
            await clearState();
         }
     }

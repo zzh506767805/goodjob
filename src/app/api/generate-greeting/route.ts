@@ -66,17 +66,30 @@ ${resumeHighlights}
 function createResumeHighlights(parsedData: any): string {
   const { personalInfo, skills, experience, education } = parsedData;
   let highlights = "";
+  
+  // 添加调试信息
+  console.log("Debug - parsedData structure:", Object.keys(parsedData));
+  console.log("Debug - experience field:", experience);
+  
   if (personalInfo?.name) highlights += `候选人姓名: ${personalInfo.name}.\n`;
   if (skills?.length > 0) highlights += `主要技能: ${skills.slice(0, 5).join(', ')}.\n`;
-  if (experience?.length > 0) {
+  
+  // 修改这部分以确保正确处理experience数组
+  if (experience && Array.isArray(experience) && experience.length > 0) {
     highlights += `工作经历:\n`;
     experience.slice(0, 3).forEach((exp: any) => {
-      const descSnippet = exp.description ? `: ${exp.description.substring(0, 150)}...` : '';
-      highlights += `  - ${exp.company ? `在 ${exp.company} ` : ''}${exp.position ? `担任 ${exp.position}` : ''}${descSnippet}\n`;
+      const company = exp.company || '未知公司';
+      const position = exp.position || '未知职位';
+      const descSnippet = exp.description 
+        ? `: ${exp.description.substring(0, 150)}...` 
+        : '';
+      highlights += `  - 在 ${company} 担任 ${position}${descSnippet}\n`;
     });
   } else {
+    console.warn("工作经历数据缺失或格式不正确:", experience);
     highlights += `工作经历: N/A.\n`;
   }
+  
   if (education?.length > 0) {
     const latestEdu = education[0];
     highlights += `最高学历: ${latestEdu.degree} 毕业于 ${latestEdu.institution}.\n`;
