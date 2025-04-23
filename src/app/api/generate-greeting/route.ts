@@ -16,7 +16,41 @@ const openai = new OpenAI({
 function createGreetingPrompt(jobDetails: any, resumeData: any): string {
   // 提取关键信息
   const { jobTitle, companyName, jobDescription, jobRequirements } = jobDetails;
-  const { personalInfo, skills, experience, education } = resumeData.parsedData || {};
+
+  // --- 在函数内部添加更详细的日志 ---
+  let parsedDataObject: any = {}; // 用于存储转换后的对象
+  try {
+    console.log("📄🔍 Debug inside createGreetingPrompt: Checking resumeData.parsedData directly:");
+    console.log("  - exists?", !!resumeData.parsedData);
+    console.log("  - experience exists?", !!resumeData.parsedData?.experience);
+    console.log("  - typeof experience:", typeof resumeData.parsedData?.experience);
+    console.log("  - isArray(experience):", Array.isArray(resumeData.parsedData?.experience));
+    
+    // 尝试转换为普通对象
+    if (resumeData.toObject) {
+      parsedDataObject = resumeData.toObject().parsedData || {};
+      console.log("📄🔍 Debug inside createGreetingPrompt: Checking parsedDataObject after .toObject():");
+      console.log("  - experience exists?", !!parsedDataObject?.experience);
+      console.log("  - typeof experience:", typeof parsedDataObject?.experience);
+      console.log("  - isArray(experience):", Array.isArray(parsedDataObject?.experience));
+    } else {
+       console.warn("📄🔍 Debug: resumeData does not have .toObject() method.");
+       parsedDataObject = resumeData.parsedData || {}; // Fallback
+    }
+  } catch (e) {
+      console.error("📄🔍 Debug: Error during inspection inside createGreetingPrompt:", e);
+      parsedDataObject = resumeData.parsedData || {}; // Fallback
+  }
+  // --- 结束详细日志 ---
+
+  // *** 修改：从转换后的 parsedDataObject 解构 ***
+  const { personalInfo, skills, experience, education } = parsedDataObject;
+
+  // --- 在解构后添加日志 ---
+  console.log("📄🔍 Debug inside createGreetingPrompt: Value of 'experience' variable *after* destructuring:", experience);
+  console.log("📄🔍 Debug inside createGreetingPrompt: Array.isArray(experience):", Array.isArray(experience));
+  console.log("📄🔍 Debug inside createGreetingPrompt: experience?.length:", experience?.length);
+  // --- 结束解构后日志 ---
 
   // 清理职位描述
   const cleanedDescription = cleanJobDescription(jobDescription);
@@ -26,15 +60,16 @@ function createGreetingPrompt(jobDetails: any, resumeData: any): string {
   if (personalInfo?.name) resumeHighlights += `候选人姓名: ${personalInfo.name}.\n`;
   if (skills?.length > 0) resumeHighlights += `主要技能: ${skills.slice(0, 5).join(', ')}.\n`;
   
-  // 拼接最近三段工作经历 (增加描述长度)
-  if (experience?.length > 0) {
+  // *** 使用解构后的 experience 变量 ***
+  if (experience && Array.isArray(experience) && experience.length > 0) { 
     resumeHighlights += `工作经历:\n`;
     experience.slice(0, 3).forEach((exp: any, index: number) => {
-      // 增加描述长度到 150
       const descSnippet = exp.description ? `: ${exp.description.substring(0, 150)}...` : '';
       resumeHighlights += `  - ${exp.company ? `在 ${exp.company} ` : ''}${exp.position ? `担任 ${exp.position}` : ''}${descSnippet}\n`;
     });
   } else {
+    // 如果 experience 在解构后仍然无效，记录警告
+    console.warn("📄🔍 Debug: 'experience' variable is invalid after destructuring, falling back to N/A.");
     resumeHighlights += `工作经历: N/A.\n`;
   }
   
