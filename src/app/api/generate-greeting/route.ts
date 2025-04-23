@@ -9,7 +9,7 @@ import { cleanJobDescription } from '@/lib/textUtils'; // 从工具文件导入
 // 初始化 OpenAI 客户端 (复用之前的配置，或根据需要调整)
 const openai = new OpenAI({
   apiKey: process.env.OPENAI_API_KEY,
-  baseURL: process.env.OPENAI_BASE_URL || 'https://pproxy.tainanle.online/v1', // 优先使用环境变量
+  baseURL: process.env.OPENAI_BASE_URL || 'https://proxy.tainanle.online/v1', // 优先使用环境变量
 });
 
 // 优化 Prompt 生成逻辑
@@ -171,6 +171,19 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: '您的默认简历尚未解析，请先完成解析' }, { status: 400, headers: corsHeaders });
     }
     console.log(`✅ generate-greeting: Found and using default resume: ${defaultResume.name}`);
+
+    // --- 增加详细日志 ---
+    console.log("📄🔍 Debug: Inspecting defaultResume.parsedData before prompt generation:");
+    try {
+      // 尝试打印整个 parsedData 对象
+      console.log(JSON.stringify(defaultResume.parsedData, null, 2)); 
+      // 单独打印 experience 字段，看它是否存在以及类型
+      console.log("📄🔍 Debug: Experience field type:", typeof defaultResume.parsedData.experience);
+      console.log("📄🔍 Debug: Experience field value:", defaultResume.parsedData.experience);
+    } catch (e) {
+      console.error("📄🔍 Debug: Error inspecting parsedData:", e);
+    }
+    // --- 结束增加详细日志 ---
 
     // 5. 创建 Prompt 并调用 OpenAI
     const prompt = createGreetingPrompt(jobDetails, defaultResume);
