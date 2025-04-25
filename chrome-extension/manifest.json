@@ -45,6 +45,7 @@
   },
   "host_permissions": [
     "*://*.zhipin.com/*",
-    "*://*.bosszhipin.work/*"
+    "*://*.bosszhipin.work/*",
+    "http://localhost:3000/*"
   ]
 } 

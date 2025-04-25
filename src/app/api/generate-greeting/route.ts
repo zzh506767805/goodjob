@@ -16,41 +16,7 @@ const openai = new OpenAI({
 function createGreetingPrompt(jobDetails: any, resumeData: any): string {
   // 提取关键信息
   const { jobTitle, companyName, jobDescription, jobRequirements } = jobDetails;
-
-  // --- 在函数内部添加更详细的日志 ---
-  let parsedDataObject: any = {}; // 用于存储转换后的对象
-  try {
-    console.log("📄🔍 Debug inside createGreetingPrompt: Checking resumeData.parsedData directly:");
-    console.log("  - exists?", !!resumeData.parsedData);
-    console.log("  - experience exists?", !!resumeData.parsedData?.experience);
-    console.log("  - typeof experience:", typeof resumeData.parsedData?.experience);
-    console.log("  - isArray(experience):", Array.isArray(resumeData.parsedData?.experience));
-    
-    // 尝试转换为普通对象
-    if (resumeData.toObject) {
-      parsedDataObject = resumeData.toObject().parsedData || {};
-      console.log("📄🔍 Debug inside createGreetingPrompt: Checking parsedDataObject after .toObject():");
-      console.log("  - experience exists?", !!parsedDataObject?.experience);
-      console.log("  - typeof experience:", typeof parsedDataObject?.experience);
-      console.log("  - isArray(experience):", Array.isArray(parsedDataObject?.experience));
-    } else {
-       console.warn("📄🔍 Debug: resumeData does not have .toObject() method.");
-       parsedDataObject = resumeData.parsedData || {}; // Fallback
-    }
-  } catch (e) {
-      console.error("📄🔍 Debug: Error during inspection inside createGreetingPrompt:", e);
-      parsedDataObject = resumeData.parsedData || {}; // Fallback
-  }
-  // --- 结束详细日志 ---
-
-  // *** 修改：从转换后的 parsedDataObject 解构 ***
-  const { personalInfo, skills, experience, education } = parsedDataObject;
-
-  // --- 在解构后添加日志 ---
-  console.log("📄🔍 Debug inside createGreetingPrompt: Value of 'experience' variable *after* destructuring:", experience);
-  console.log("📄🔍 Debug inside createGreetingPrompt: Array.isArray(experience):", Array.isArray(experience));
-  console.log("📄🔍 Debug inside createGreetingPrompt: experience?.length:", experience?.length);
-  // --- 结束解构后日志 ---
+  const { personalInfo, skills, experience, education } = resumeData.parsedData || {};
 
   // 清理职位描述
   const cleanedDescription = cleanJobDescription(jobDescription);
@@ -60,16 +26,15 @@ function createGreetingPrompt(jobDetails: any, resumeData: any): string {
   if (personalInfo?.name) resumeHighlights += `候选人姓名: ${personalInfo.name}.\n`;
   if (skills?.length > 0) resumeHighlights += `主要技能: ${skills.slice(0, 5).join(', ')}.\n`;
   
-  // *** 使用解构后的 experience 变量 ***
-  if (experience && Array.isArray(experience) && experience.length > 0) { 
+  // 拼接最近三段工作经历 (增加描述长度)
+  if (experience?.length > 0) {
     resumeHighlights += `工作经历:\n`;
     experience.slice(0, 3).forEach((exp: any, index: number) => {
+      // 增加描述长度到 150
       const descSnippet = exp.description ? `: ${exp.description.substring(0, 150)}...` : '';
       resumeHighlights += `  - ${exp.company ? `在 ${exp.company} ` : ''}${exp.position ? `担任 ${exp.position}` : ''}${descSnippet}\n`;
     });
   } else {
-    // 如果 experience 在解构后仍然无效，记录警告
-    console.warn("📄🔍 Debug: 'experience' variable is invalid after destructuring, falling back to N/A.");
     resumeHighlights += `工作经历: N/A.\n`;
   }
   
@@ -186,45 +151,75 @@ export async function POST(req: NextRequest) {
     }
     console.log(`✅ generate-greeting: Found defaultResumeId: ${user.defaultResumeId}`);
     
-    // 4. 使用 defaultResumeId 获取简历内容
+    // 4. Fetch the Mongoose Document, explicitly selecting parsedData
     console.log(`📄 generate-greeting: Fetching resume content for resumeId: ${user.defaultResumeId}`);
-    const defaultResume = await Resume.findById(user.defaultResumeId);
+    const defaultResume = await Resume.findById(user.defaultResumeId).select('+parsedData'); 
 
     if (!defaultResume) {
-      console.log(`❌ generate-greeting: Default resume content not found for resumeId: ${user.defaultResumeId}. This might indicate data inconsistency.`);
-      // 如果根据 ID 找不到简历，说明数据可能存在问题
-      return NextResponse.json({ error: '找不到默认简历的详细信息，可能已被删除' }, { status: 404, headers: corsHeaders });
+      console.log(`❌ generate-greeting: Default resume content not found for resumeId: ${user.defaultResumeId}...`);
+      return NextResponse.json({ error: '找不到默认简历的详细信息...' }, { status: 404, headers: corsHeaders });
     }
-    // 检查简历是否属于该用户 (额外的安全检查，理论上 ID 匹配即可)
     if (defaultResume.userId.toString() !== userId) {
-        console.error(`❌ generate-greeting: Security Alert! User ${userId} tried to access resume ${user.defaultResumeId} belonging to ${defaultResume.userId}`);
+        console.error(`❌ generate-greeting: Security Alert! User ${userId} tried to access resume ...`);
         return NextResponse.json({ error: '无权访问该简历' }, { status: 403, headers: corsHeaders });
     }
-    
-    if (!defaultResume.parsedData) {
-      console.log(`⚠️ generate-greeting: Default resume (ID: ${user.defaultResumeId}) has not been parsed yet.`);
-      return NextResponse.json({ error: '您的默认简历尚未解析，请先完成解析' }, { status: 400, headers: corsHeaders });
-    }
-    console.log(`✅ generate-greeting: Found and using default resume: ${defaultResume.name}`);
 
-    // --- 增加详细日志 ---
-    console.log("📄🔍 Debug: Inspecting defaultResume.parsedData before prompt generation:");
+    // *** Final Approach: Access fields within the Mongoose Map using .get() ***
+    let parsedDataMap: Map<string, any> | null = null;
+    let experienceFromMap: any = undefined; // To store the specific field
+    let plainParsedData:any = {}; // To store the converted plain object
+    
     try {
-      // 尝试打印整个 parsedData 对象
-      console.log(JSON.stringify(defaultResume.parsedData, null, 2)); 
-      // 单独打印 experience 字段，看它是否存在以及类型
-      console.log("📄🔍 Debug: Experience field type:", typeof defaultResume.parsedData.experience);
-      console.log("📄🔍 Debug: Experience field value:", defaultResume.parsedData.experience);
-    } catch (e) {
-      console.error("📄🔍 Debug: Error inspecting parsedData:", e);
-    }
-    // --- 结束增加详细日志 ---
+        if (defaultResume.parsedData && defaultResume.parsedData instanceof Map) {
+             parsedDataMap = defaultResume.parsedData;
+             console.log("📄✅ Debug: Accessed parsedData as a Map.");
+             
+             // Use the Map's .get() method to access 'experience'
+             if (parsedDataMap) {  // 添加空值检查
+                experienceFromMap = parsedDataMap.get('experience'); 
+             }
+             console.log("   - Attempted to get 'experience' using Map.get():", experienceFromMap);
+             console.log("   - Type of experienceFromMap:", typeof experienceFromMap);
+             console.log("   - isArray(experienceFromMap):", Array.isArray(experienceFromMap));
+             console.log("   - experienceFromMap length:", experienceFromMap?.length);
 
-    // 5. 创建 Prompt 并调用 OpenAI
-    const prompt = createGreetingPrompt(jobDetails, defaultResume);
+             // We need the whole parsedData content eventually, let's convert the Map
+             // Mongoose Maps don't have a straightforward toObject, but iterating keys works
+             // *** Add null check before iteration ***
+             if (parsedDataMap) { 
+                 for (let [key, value] of parsedDataMap.entries()) { 
+                     // Be cautious with nested Maps or complex Mixed types
+                     // For simple values or arrays, this should be okay
+                     plainParsedData[key] = value; 
+                 }
+                 console.log("   - Converted Map to plain object. Keys:", Object.keys(plainParsedData));
+                 // Re-assign parsedDataMap to the plain object for the function call
+                 // parsedDataMap = plainParsedData; // Let's pass plainParsedData directly later
+             } else {
+                  plainParsedData = {}; // Ensure it's an empty object if map was null
+             }
+
+        } else {
+            console.warn("📄⚠️ Debug: defaultResume.parsedData is missing or not a Map instance.");
+            parsedDataMap = null; // Or handle as error
+            plainParsedData = {};
+        }
+    } catch (e) {
+        console.error("📄❌ Debug: Error accessing or converting parsedData Map:", e);
+        return NextResponse.json({ error: '访问简历解析数据时发生内部错误，请联系管理员' }, { status: 500, headers: corsHeaders });
+    }
+
+    // Check if we successfully got a usable object/map (check plainParsedData)
+     if (!plainParsedData || typeof plainParsedData !== 'object' || Object.keys(plainParsedData).length === 0) {
+        console.log(`⚠️ generate-greeting: Default resume (ID: ${user.defaultResumeId}) has empty, missing, or invalid parsedData *after attempting Map access and conversion*.`); 
+        return NextResponse.json({ error: '您的默认简历数据为空、未解析或访问异常，请检查' }, { status: 400, headers: corsHeaders });
+    }
+     console.log(`✅ generate-greeting: Found and using default resume: ${defaultResume.name}`); 
+
+    // 5. Create Prompt using the data obtained from the Map (now converted to plain object)
+    const prompt = createGreetingPromptFromParsedData(jobDetails, plainParsedData); // Pass the plain object 
     const model = process.env.OPENAI_API_MODEL || "gpt-4.1-mini";
-    
-    // **增加日志：打印最终的 Prompt**
+
     console.log("📄📄📄 Final Prompt being sent to OpenAI: ---------");
     console.log(prompt);
     console.log("--------------------------------------------------");
@@ -264,4 +259,62 @@ export async function POST(req: NextRequest) {
       { status: 500, headers: corsHeaders } // 添加 CORS 头
     );
   }
+}
+
+// *** 需要修改/创建一个新的 Prompt 函数，直接接收 parsedData ***
+function createGreetingPromptFromParsedData(jobDetails: any, parsedData: any): string {
+  // 提取关键信息
+  const { jobTitle, companyName, jobDescription } = jobDetails;
+  // 直接从传入的 parsedData 解构
+  const { personalInfo, skills, experience, education } = parsedData || {}; 
+
+  // --- 内部 Debug 日志 (验证传入的 experience) ---
+   console.log("📄🔍 Debug inside createGreetingPromptFromParsedData: Value of 'experience' variable *after* destructuring:", experience);
+   console.log("📄🔍 Debug inside createGreetingPromptFromParsedData: Array.isArray(experience):", Array.isArray(experience));
+   console.log("📄🔍 Debug inside createGreetingPromptFromParsedData: experience?.length:", experience?.length);
+  // --- 结束 Debug ---
+
+  const cleanedDescription = cleanJobDescription(jobDescription);
+  let resumeHighlights = "";
+  if (personalInfo?.name) resumeHighlights += `候选人姓名: ${personalInfo.name}.\n`;
+  if (skills?.length > 0) resumeHighlights += `主要技能: ${skills.slice(0, 5).join(', ')}.\n`;
+  
+  if (experience && Array.isArray(experience) && experience.length > 0) { 
+    resumeHighlights += `工作经历:\n`;
+    experience.slice(0, 3).forEach((exp: any) => {
+      const company = exp.company || '未知公司';
+      const position = exp.position || '未知职位';
+      const descSnippet = exp.description ? `: ${exp.description.substring(0, 150)}...` : '';
+      resumeHighlights += `  - 在 ${company} 担任 ${position}${descSnippet}\n`;
+    });
+  } else {
+    console.warn("📄🔍 Debug in createGreetingPromptFromParsedData: 'experience' variable is invalid, falling back to N/A.");
+    resumeHighlights += `工作经历: N/A.\n`;
+  }
+  
+  if (education?.length > 0) {
+    const latestEdu = education[0];
+    resumeHighlights += `最高学历: ${latestEdu.degree} 毕业于 ${latestEdu.institution}.\n`;
+  }
+  if (resumeHighlights === "") {
+    console.warn("📄🔍 Debug in createGreetingPromptFromParsedData: 'resumeHighlights' variable is empty, falling back to N/A.");
+    resumeHighlights = "简历信息不完整或未解析.\n";
+  }
+
+  // 构建 Prompt ... (内容不变)
+  return `
+请根据以下职位信息和候选人简历，以友好、专业的口吻，生成一段不超过300字的打招呼开场白。目的是表达对职位的兴趣，并突出候选人与职位要求的匹配度。请直接返回开场白文本，不要包含任何额外的解释或标记。
+
+--- 职位信息 ---
+职位名称: ${jobTitle || '未提供'}
+公司名称: ${companyName || '未提供'}
+职位描述:
+${cleanedDescription} 
+
+--- 候选人简历亮点 ---
+${resumeHighlights}
+---
+
+打招呼开场白：
+`;
 } 
