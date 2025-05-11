@@ -82,6 +82,26 @@
     <label for="job-count">处理数量:</label>
     <input type="number" id="job-count" name="job-count" min="1" value="1" step="1">
   </div>
+  
+  <!-- 新增：标签页选择区域 -->
+  <div style="margin-top: 10px; margin-bottom: 10px;">
+    <div style="display: flex; align-items: center;">
+      <label for="tab-index" style="flex: 1;">目标标签页:</label>
+      <select id="tab-index" name="tab-index" style="flex: 1.5; padding: 4px;">
+        <option value="-1">推荐标签页 (默认)</option>
+        <option value="0">第1个自定义岗位</option>
+        <option value="1">第2个自定义岗位</option>
+        <option value="2">第3个自定义岗位</option>
+        <option value="3">第4个自定义岗位</option>
+        <option value="4">第5个自定义岗位</option>
+      </select>
+    </div>
+    <p style="margin: 5px 0; font-size: 11px; color: #666;">
+      "推荐标签页"指Boss直聘的默认推荐，其他选项指自定义的岗位标签(如"Java"、"前端"等)
+    </p>
+  </div>
+  <!-- 结束新增 -->
+  
   <button id="start-button" style="padding: 8px 12px; font-size: 14px;">处理当前职位</button>
   
   <!-- 新增页脚区域：官网跳转链接 -->

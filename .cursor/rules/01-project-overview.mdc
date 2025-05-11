@@ -1,0 +1,26 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 项目概览 - 智能求职助手
+
+这个项目是一个智能求职助手应用，由以下几个主要部分组成：
+
+1. **Next.js 前端应用** - 提供用户界面和网站功能
+   - 入口文件: [src/app/layout.tsx](mdc:src/app/layout.tsx)
+   - 主页: [src/app/page.tsx](mdc:src/app/page.tsx)
+   - 用户仪表盘: [src/app/dashboard/page.tsx](mdc:src/app/dashboard/page.tsx)
+
+2. **Node.js 后端 API** - 处理数据和业务逻辑
+   - API 路由位于 [src/app/api/](mdc:src/app/api) 目录下
+   - 数据库连接: [src/lib/mongodb.ts](mdc:src/lib/mongodb.ts)
+   - 模型定义在 [src/models/](mdc:src/models) 目录
+
+3. **Chrome 扩展** - 与求职网站集成的浏览器插件
+   - 扩展入口: [chrome-extension/manifest.json](mdc:chrome-extension/manifest.json)
+   - 后台脚本: [chrome-extension/background.js](mdc:chrome-extension/background.js)
+   - 内容脚本: [chrome-extension/content_script.js](mdc:chrome-extension/content_script.js)
+   - 弹出界面: [chrome-extension/popup.js](mdc:chrome-extension/popup.js)
+
+该应用的主要功能是帮助用户在求职过程中自动生成个性化的打招呼语、分析职位描述，以及管理求职历程。

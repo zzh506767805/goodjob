@@ -40,7 +40,7 @@ export async function POST(req: NextRequest) {
 
     // 2. 创建内部订单记录 (数据库)
     const internalOrderId = `MEMBER_${userId}_${Date.now()}`; // 内部订单号
-    const orderAmount = 0.01; // 测试金额
+    const orderAmount = 66; // 测试金额
     console.log(`📝 payment/create: 准备为用户 ${userId} 创建数据库订单 ${internalOrderId}, 金额 ${orderAmount}`);
 
     // --- 新增：创建订单记录到数据库 ---

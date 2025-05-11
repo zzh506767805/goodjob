@@ -44,7 +44,7 @@ export async function POST(req: NextRequest) {
     const total_amount = parseFloat(notificationData.total_amount);
     const trade_no = notificationData.trade_no; // 支付宝交易号
     const gmt_payment = notificationData.gmt_payment; // 支付时间字符串
-    const expectedAmount = 0.01;
+    const expectedAmount = 66;
 
     console.log(`📊 alipay-notify: 订单号: ${out_trade_no}, 状态: ${trade_status}, 金额: ${total_amount}, 支付宝交易号: ${trade_no}`);
 

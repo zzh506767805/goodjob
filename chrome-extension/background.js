@@ -1,8 +1,8 @@
 console.log("Background service worker started.");
 
 // 后台 API 地址常量
-const API_BASE_URL = 'https://bosszhipin.work'; // 先注释掉线上地址
-// const API_BASE_URL = 'http://localhost:3000'; // 修改为本地开发服务器地址
+//const API_BASE_URL = 'https://bosszhipin.work'; // 先注释掉线上地址
+ const API_BASE_URL = 'http://localhost:3000'; // 修改为本地开发服务器地址
 
 // 监听来自 content script 或 popup 的消息
 console.log("Background: Adding onMessage listener...");

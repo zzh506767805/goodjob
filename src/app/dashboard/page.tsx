@@ -183,8 +183,8 @@ export default function Dashboard() {
     }
   };
 
-  const downloadUrl = 'https://github.com/zzh506767805/goodjob/releases/download/v1.0.0/GoodJob_v1.0.zip';
-  const downloadFilename = 'GoodJob_v1.0.zip';
+  const downloadUrl = 'https://github.com/zzh506767805/goodjob/releases/download/v1.0.0/goodjob.zip';
+  const downloadFilename = 'goodjob.zip';
 
   return (
     <DashboardLayout>

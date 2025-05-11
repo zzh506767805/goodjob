@@ -1,0 +1,37 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# Chrome扩展架构
+
+智能求职助手Chrome扩展是一个与招聘网站集成的工具，主要用于增强用户在求职过程中的体验。
+
+## 扩展文件结构
+- 配置文件: [chrome-extension/manifest.json](mdc:chrome-extension/manifest.json) - 定义扩展权限和组件
+- 后台脚本: [chrome-extension/background.js](mdc:chrome-extension/background.js) - 处理API请求和状态管理
+- 内容脚本: [chrome-extension/content_script.js](mdc:chrome-extension/content_script.js) - 与网页交互的脚本
+- 弹出界面: [chrome-extension/popup.html](mdc:chrome-extension/popup.html) 和 [chrome-extension/popup.js](mdc:chrome-extension/popup.js) - 用户界面
+
+## 主要功能模块
+1. **用户认证**
+   - 通过JWT令牌实现用户登录
+   - 使用chrome.storage存储认证信息
+
+2. **职位数据抓取**
+   - 从目标招聘网站提取职位信息
+   - 解析职位标题、公司名称和职位描述
+
+3. **打招呼生成**
+   - 将职位信息发送到后端API
+   - 接收并显示AI生成的个性化打招呼语
+
+4. **投递追踪**
+   - 记录用户的投递行为
+   - 同步投递数据到后端服务
+
+## 与后端通信
+- 所有API请求通过background.js中的`API_BASE_URL`变量配置
+- 生产环境使用`https://bosszhipin.work`
+- 开发环境可切换到`http://localhost:3000`
+- 通信使用标准的Fetch API，带有JWT认证头

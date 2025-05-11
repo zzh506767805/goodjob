@@ -1,0 +1,56 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 简历解析与使用
+
+简历数据处理是本项目的核心功能之一，包括简历上传、解析、存储和使用流程。
+
+## 简历数据结构
+
+简历模型定义在 [src/models/Resume.ts](mdc:src/models/Resume.ts) 中，包含以下主要字段：
+- 基本信息（名称、类型、所有者）
+- 原始内容（文本或文件引用）
+- 解析后的结构化数据 (`parsedData`)，包含：
+  - 个人信息（姓名、联系方式等）
+  - 技能列表
+  - 工作经历
+  - 教育经历
+
+## 解析过程
+
+1. **上传阶段**
+   - 用户通过 [src/app/dashboard/resume/page.tsx](mdc:src/app/dashboard/resume/page.tsx) 上传简历
+   - 上传接口 [src/app/api/resume/upload/route.ts](mdc:src/app/api/resume/upload/route.ts) 接收文件
+
+2. **解析阶段**
+   - 简历解析服务提取原始文本
+   - AI模型或结构化解析工具处理文本
+   - 生成结构化数据并保存到 `parsedData` 字段
+
+## 数据访问注意事项
+
+`parsedData` 字段在Mongoose模型中定义为 `Map` 类型，访问时需要注意：
+- 使用 `.select('+parsedData')` 显式请求该字段
+- 通过 `get()` 方法正确访问Map内部数据
+- 处理可能的数据类型转换问题
+
+示例代码位于 [src/app/api/generate-greeting/route.ts](mdc:src/app/api/generate-greeting/route.ts) 中：
+```typescript
+if (defaultResume.parsedData && defaultResume.parsedData instanceof Map) {
+  parsedDataMap = defaultResume.parsedData;
+  // 使用Map.get()方法访问数据
+  if (parsedDataMap) {
+    experienceFromMap = parsedDataMap.get('experience');
+  }
+}
+```
+
+## 数据使用场景
+
+解析后的简历数据主要用于：
+1. 生成个性化打招呼语 [src/app/api/generate-greeting/route.ts](mdc:src/app/api/generate-greeting/route.ts)
+2. 简历预览和编辑功能
+3. 职位匹配分析
+4. 仪表盘数据展示

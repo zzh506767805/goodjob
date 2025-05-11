@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "智能求职助手",
-  "version": "1.0.1",
+  "version": "1.0.2",
   "description": "智能求职助手 - 让求职更高效",
   "permissions": ["storage", "activeTab", "tabs"],
   "action": {

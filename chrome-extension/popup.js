@@ -361,8 +361,9 @@ document.addEventListener('DOMContentLoaded', function() {
   const startButton = document.getElementById('start-button');
   const statusMessage = document.getElementById('status-message');
   const jobCountInput = document.getElementById('job-count'); // 获取数字输入框
+  const tabIndexSelect = document.getElementById('tab-index'); // 获取标签页选择下拉框
 
-  if (startButton && statusMessage && jobCountInput) { // 确保所有元素都存在
+  if (startButton && statusMessage && jobCountInput && tabIndexSelect) { // 确保所有元素都存在
     startButton.addEventListener('click', () => {
       console.log("Start button clicked.");
       const jobCount = parseInt(jobCountInput.value, 10); // 读取输入的数量
@@ -371,7 +372,15 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
       }
       
-      statusMessage.textContent = `准备处理 ${jobCount} 个职位...`;
+      // 获取标签页索引
+      const targetTabIndex = parseInt(tabIndexSelect.value, 10);
+      console.log(`目标标签页索引: ${targetTabIndex}`);
+      
+      let statusText = `准备处理 ${jobCount} 个职位`;
+      if (targetTabIndex >= 0) {
+        statusText += `，在第 ${targetTabIndex + 1} 个标签页下`;
+      }
+      statusMessage.textContent = statusText + "...";
       startButton.disabled = true;
 
       // 获取当前活动的标签页
@@ -380,9 +389,13 @@ document.addEventListener('DOMContentLoaded', function() {
         if (currentTab && currentTab.id) {
           // 检查当前页面是否是 Boss 直聘
           if (currentTab.url && currentTab.url.includes('zhipin.com')) {
-            console.log(`Sending startAutoGreeting message to tab ${currentTab.id} with count: ${jobCount}`);
-            // 向 content script 发送开始处理的消息，并带上处理数量
-            chrome.tabs.sendMessage(currentTab.id, { action: "startAutoGreeting", count: jobCount }, (response) => {
+            console.log(`Sending startAutoGreeting message to tab ${currentTab.id} with count: ${jobCount} and targetTabIndex: ${targetTabIndex}`);
+            // 向 content script 发送开始处理的消息，并带上处理数量和目标标签页索引
+            chrome.tabs.sendMessage(currentTab.id, { 
+              action: "startAutoGreeting", 
+              count: jobCount,
+              targetTabIndex: targetTabIndex // 增加标签页索引参数
+            }, (response) => {
               if (chrome.runtime.lastError) {
                 console.error("Error sending message:", chrome.runtime.lastError.message);
                 statusMessage.textContent = `错误: ${chrome.runtime.lastError.message}`;

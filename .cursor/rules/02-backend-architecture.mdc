@@ -1,0 +1,30 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 后端架构 - API与数据模型
+
+本项目采用Next.js的API路由功能实现后端服务，主要包含以下组件：
+
+## API路由结构
+API路由位于 [src/app/api/](mdc:src/app/api) 目录，遵循Next.js的App Router约定：
+- 用户认证: [src/app/api/auth/](mdc:src/app/api/auth)
+- 简历管理: [src/app/api/resume/](mdc:src/app/api/resume)
+- 生成打招呼语: [src/app/api/generate-greeting/route.ts](mdc:src/app/api/generate-greeting/route.ts)
+- 追踪投递: [src/app/api/track-submission/route.ts](mdc:src/app/api/track-submission/route.ts)
+
+## 数据模型定义
+数据模型使用Mongoose定义，位于 [src/models/](mdc:src/models) 目录：
+- 用户模型: [src/models/User.ts](mdc:src/models/User.ts) - 存储用户信息和会员状态
+- 简历模型: [src/models/Resume.ts](mdc:src/models/Resume.ts) - 存储用户简历和解析后的数据
+- 投递记录: [src/models/Submission.ts](mdc:src/models/Submission.ts) - 记录用户的求职投递历史
+
+## 中间件与工具函数
+- 认证中间件: [src/middleware.ts](mdc:src/middleware.ts) - 处理API请求的权限验证
+- 认证工具: [src/lib/authUtils.ts](mdc:src/lib/authUtils.ts) - JWT验证和用户认证函数
+- 数据库连接: [src/lib/mongodb.ts](mdc:src/lib/mongodb.ts) - MongoDB连接管理
+
+## 外部服务集成
+- OpenAI API: 用于生成打招呼语和简历分析
+- 支付宝API: 用于处理会员订阅支付

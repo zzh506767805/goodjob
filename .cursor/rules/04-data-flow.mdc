@@ -1,0 +1,41 @@
+---
+description: 
+globs: 
+alwaysApply: false
+---
+# 数据流架构
+
+本项目的数据流主要涉及用户数据、简历数据、职位信息和AI生成内容之间的交互。
+
+## 主要数据流向
+
+1. **用户认证流程**
+   - 用户在网站 [src/app/login/page.tsx](mdc:src/app/login/page.tsx) 登录
+   - 认证请求发送到 [src/app/api/auth/login/route.ts](mdc:src/app/api/auth/login/route.ts)
+   - 生成JWT令牌返回给前端并存储在浏览器中
+   - Chrome扩展通过网站或弹出窗口获取令牌并存储在chrome.storage中
+
+2. **简历处理流程**
+   - 用户上传简历到 [src/app/api/resume/upload/route.ts](mdc:src/app/api/resume/upload/route.ts)
+   - 简历解析服务提取结构化数据并保存到数据库
+   - 简历数据存储在 [src/models/Resume.ts](mdc:src/models/Resume.ts) 模型中
+   - 用户可以在仪表盘 [src/app/dashboard/page.tsx](mdc:src/app/dashboard/page.tsx) 查看和管理简历
+
+3. **打招呼生成流程**
+   - Chrome扩展 [chrome-extension/content_script.js](mdc:chrome-extension/content_script.js) 从招聘网站提取职位信息
+   - 数据通过 [chrome-extension/background.js](mdc:chrome-extension/background.js) 发送到 [src/app/api/generate-greeting/route.ts](mdc:src/app/api/generate-greeting/route.ts)
+   - 后端从数据库加载用户简历数据
+   - OpenAI API生成个性化打招呼语
+   - 生成结果返回给Chrome扩展并显示给用户
+
+4. **投递追踪流程**
+   - 用户在招聘网站投递职位
+   - Chrome扩展 [chrome-extension/content_script.js](mdc:chrome-extension/content_script.js) 捕获投递动作
+   - 投递信息通过 [chrome-extension/background.js](mdc:chrome-extension/background.js) 发送到 [src/app/api/track-submission/route.ts](mdc:src/app/api/track-submission/route.ts)
+   - 投递记录保存到 [src/models/Submission.ts](mdc:src/models/Submission.ts) 模型
+   - 用户可以在仪表盘查看投递历史和统计数据
+
+## 数据存储
+- 所有持久化数据存储在MongoDB数据库中
+- 临时状态通过React状态管理 [src/app/contexts/](mdc:src/app/contexts) 管理
+- Chrome扩展中的临时数据使用chrome.storage API存储
