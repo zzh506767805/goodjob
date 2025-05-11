@@ -183,7 +183,7 @@ export default function Dashboard() {
     }
   };
 
-  const downloadUrl = 'https://github.com/zzh506767805/goodjob/releases/download/v1.0.0/goodjob.zip';
+  const downloadUrl = 'https://github.com/zzh506767805/goodjob/releases/download/v1.0.0/goodjoblatest.zip';
   const downloadFilename = 'goodjob.zip';
 
   return (
