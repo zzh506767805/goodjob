@@ -111,6 +111,16 @@ export default function Home() {
           </div>
         </div>
       </div>
+      {/* 友情链接区域 */}
+      <footer className="w-full bg-white border-t mt-8 py-6 flex flex-col items-center">
+        <div className="text-gray-500 text-sm mb-2">Friend Links</div>
+        <div className="flex flex-wrap gap-4 justify-center">
+          <a href="https://chinesenamegenerate.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Chinesenamegenerate.com</a>
+          <a href="https://dressmeai.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">dressmeai.com</a>
+          <a href="https://checkios.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">checkios.com</a>
+          <a href="https://dreamfinityx.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Dreamfinityx.com</a>
+        </div>
+      </footer>
     </main>
   );
 }
