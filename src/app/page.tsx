@@ -119,6 +119,8 @@ export default function Home() {
           <a href="https://dressmeai.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">dressmeai.com</a>
           <a href="https://checkios.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">checkios.com</a>
           <a href="https://dreamfinityx.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Dreamfinityx.com</a>
+          <a href="https://ainails.pro" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ainails.pro</a>
+
         </div>
       </footer>
     </main>
