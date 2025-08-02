@@ -120,6 +120,8 @@ export default function Home() {
           <a href="https://checkios.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">checkios.com</a>
           <a href="https://dreamfinityx.com" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Dreamfinityx.com</a>
           <a href="https://ainails.pro" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">ainails.pro</a>
+          <a href="https://charactereadcanon.pro" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Charactereadcanon.pro</a>
+          <a href="https://elfname.pro" target="_blank" rel="noopener noreferrer" className="text-blue-600 hover:underline">Elfname.pro</a>
 
         </div>
       </footer>
